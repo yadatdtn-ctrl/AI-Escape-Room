@@ -8,8 +8,10 @@ import streamlit as st
 
 from llm import get_reply, use_mock
 from prompts import OPENING_TEXT
+from tags import ITEM_NAMES, apply_tags, parse_tags
 
 MAX_MOVES = 30
+MAX_WRONG_CODES = 3
 ROOM_IMAGE = Path(__file__).parent.parent / "assets" / "Room.jpeg"
 
 INTRO = (
@@ -34,6 +36,10 @@ def reset_game():
     st.session_state.screen = "start"
     st.session_state.messages = [{"role": "assistant", "content": OPENING_TEXT}]
     st.session_state.moves = 0
+    st.session_state.inventory = []    # items the player carries, e.g. "brass_key"
+    st.session_state.cutscenes = []    # numbers of cutscenes already triggered
+    st.session_state.wrong_codes = 0   # wrong codes typed at the door
+    st.session_state.escaped = False   # True when the Game Master says the door opened
 
 
 # session_state = memory that Streamlit keeps while the page is open
@@ -68,6 +74,11 @@ left, right = st.columns(2)
 with left:
     st.image(str(ROOM_IMAGE), width="stretch")
     st.write(f"👣 Moves: {st.session_state.moves} / {MAX_MOVES}")
+    items = [ITEM_NAMES[i] for i in st.session_state.inventory]
+    st.write("🔑 Items: " + (", ".join(items) if items else "none"))
+    st.write(f"🚪 Wrong door codes: {st.session_state.wrong_codes} / {MAX_WRONG_CODES}")
+    if st.session_state.escaped:
+        st.success("The door opens onto white light. (The final choice comes in M4d.)")
 
 with right:
     chat_box = st.container(height=520)
@@ -85,5 +96,10 @@ if player_text:
     except Exception as error:
         # Show a clear message instead of a crash (the text never contains the key)
         reply = f"(Game Master error: {type(error).__name__} - {error})"
-    st.session_state.messages.append({"role": "assistant", "content": reply})
+    # Cut the hidden tags out of the text, then let them change the game state
+    clean_reply, tags = parse_tags(reply)
+    apply_tags(tags, st.session_state)
+    st.session_state.messages.append(
+        {"role": "assistant", "content": clean_reply or "The room stays silent.", "raw": reply}
+    )
     st.rerun()
