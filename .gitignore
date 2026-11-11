@@ -1,0 +1,15 @@
+# Secrets: never upload these
+.env
+.streamlit/secrets.toml
+
+# Course files (local only)
+reference/
+
+# Python virtual environment and cache
+.venv/
+__pycache__/
+*.pyc
+
+# Tool folders and temporary files
+.superpowers/
+.pytest_cache/
