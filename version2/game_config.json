@@ -1,0 +1,84 @@
+{
+  "limits": { "time_seconds": 300, "max_moves": 30, "max_wrong_codes": 3, "cutscene_seconds": 8 },
+  "solutions": { "door_code": "0211" },
+
+  "items": {
+    "brass_key": {
+      "name": "brass key", "aliases": ["key"],
+      "description": "A small brass key, cold in your hand."
+    },
+    "vinyl_record": {
+      "name": "vinyl record", "aliases": ["record", "vinyl"],
+      "description": "A vinyl record in a paper sleeve. On the sleeve: 'For our anniversary: 02.11'."
+    }
+  },
+
+  "objects": {
+    "raincoat": {
+      "name": "yellow raincoat", "aliases": ["coat", "jacket", "raincoat"],
+      "examine": "A yellow raincoat hangs on a hook. In the pocket you feel a small brass key.",
+      "reveals": ["brass_key"]
+    },
+    "diary": {
+      "name": "diary", "aliases": ["book", "journal"],
+      "examine": "Sky's small diary lies open on the desk. Sky writes about 'someone' without a name. One page says: 'The best day of my life.' A ticket stub is stuck beside it: 'Pier Festival, 14 Oct'. Further down: 'I will never forget 07.03.'",
+      "cutscene_on_first_examine": 1
+    },
+    "corkboard": {
+      "name": "corkboard", "aliases": ["photos", "board", "pictures"],
+      "examine": "Four photos of Sky through the seasons: spring, summer, autumn, winter. A birthday card is dated 23.06. One photo says 'happy birthday to you, 07.03'. In every photo, next to Sky, stands a blurry person."
+    },
+    "drawer": {
+      "name": "drawer", "aliases": ["desk drawer"],
+      "examine": "A drawer in the desk, with a small keyhole.",
+      "examine_when_open": "The drawer is open. It is empty now.",
+      "opened_by": "brass_key",
+      "when_opened": {
+        "reveals": ["vinyl_record"], "cutscene": 2,
+        "text": "The key turns. Inside the drawer lies a vinyl record in a sleeve: 'For our anniversary: 02.11'."
+      }
+    },
+    "record_player": {
+      "name": "record player", "aliases": ["turntable", "player", "gramophone"],
+      "examine": "A record player stands on the shelf. Nothing is on it.",
+      "accepts": "vinyl_record",
+      "when_used": { "cutscene": 3, "text": "The needle touches the record. Sky's voice fills the room." }
+    },
+    "door": {
+      "name": "door", "aliases": ["exit", "keypad", "front door"],
+      "examine": "A heavy wooden door with a keypad for four digits.",
+      "code_lock": true
+    },
+    "calendar": {
+      "name": "calendar", "aliases": ["wall calendar"],
+      "examine": "A wall calendar, still open at November. The 15th is circled in red: 'Exhibition!!'"
+    },
+    "desk": {
+      "name": "desk", "aliases": ["table"],
+      "examine": "A wooden desk. A diary lies on it, and it has a drawer."
+    },
+    "bed": {
+      "name": "bed", "aliases": [],
+      "examine": "A small bed with a faded blanket. It looks slept in a long time ago."
+    },
+    "window": {
+      "name": "round window", "aliases": ["window"],
+      "examine": "A round window. Soft blue light from the sea comes through it."
+    }
+  },
+
+  "plain_messages": {
+    "UNKNOWN_ACTION": "Nothing like that is possible here.",
+    "UNKNOWN_TARGET": "There is nothing like that in this room.",
+    "NOT_VISIBLE": "You have not seen that yet.",
+    "ALREADY_HAVE": "You already carry that.",
+    "NOT_IN_INVENTORY": "You do not have that with you.",
+    "WRONG_TOOL": "That does not work here.",
+    "ALREADY_DONE": "That is already done.",
+    "NO_CODE_LOCK": "There is no keypad there.",
+    "BAD_FORMAT": "The keypad needs exactly four digits.",
+    "NOT_READY": "The keypad does not respond.",
+    "WRONG_CODE": "The keypad shows: Incorrect.",
+    "DOOR_OPENS": "The keypad beeps. The door opens onto white light."
+  }
+}
