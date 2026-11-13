@@ -1,4 +1,4 @@
-"""Texts the player reads at the end.
+"""Texts the player reads: cutscene captions, the final choice and the endings.
 
 PLACEHOLDERS: Yada will replace these with their own words. The code does not
 need to change, only the texts in this file.
@@ -23,17 +23,39 @@ CUTSCENES = {
     },
 }
 
-BAD_ENDING_TITLE = "The procedure erases too much"
+# Shown after the correct door code, above the two buttons
+FINAL_CHOICE_TEXT = (
+    "[PLACEHOLDER] The door opens onto white light. Behind you, the room is waiting. "
+    "You can take Sky with you, or leave Sky here forever."
+)
 
-# Why the player lost (shown above the ending text)
+# Why the player lost (shown on the bad ending)
 BAD_REASONS = {
     "time": "Time ran out.",
     "moves": "You used all your moves.",
     "codes": "The door locked after three wrong codes.",
 }
 
-BAD_ENDING_TEXT = (
-    "[PLACEHOLDER] The procedure does not stop. It takes Sky, and then it keeps going. "
-    "You wake up in a bright room. A stranger's face looks back from the mirror. "
-    "The last five years are gone: your friends, your home, your camera, your photos."
-)
+# The three endings: "remember" and "forget" come from the final choice,
+# "bad" comes from losing (time, moves or wrong codes).
+ENDINGS = {
+    "remember": {
+        "title": "Remember",
+        "text": "[PLACEHOLDER] You wake up and everything comes back at once: the pier, "
+                "the rooftop, the rain. It hurts. But Sky is with you again, "
+                "and you carry both the grief and the love.",
+    },
+    "forget": {
+        "title": "Forget",
+        "text": "[PLACEHOLDER] You wake up light and calm. Nothing hurts. "
+                "Weeks later, a stranger's photo in a shop window makes you cry, "
+                "and you don't know why.",
+    },
+    "bad": {
+        "title": "The procedure erases too much",
+        "text": "[PLACEHOLDER] The procedure does not stop. It takes Sky, and then it keeps "
+                "going. You wake up in a bright room. A stranger's face looks back from the "
+                "mirror. The last five years are gone: your friends, your home, your camera, "
+                "your photos.",
+    },
+}

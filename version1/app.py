@@ -12,11 +12,15 @@ from prompts import OPENING_TEXT
 from rules import check_limits, time_is_up
 from settings import CUTSCENE_SECONDS, MAX_MOVES, MAX_WRONG_CODES, TIME_LIMIT_SECONDS
 from tags import ITEM_NAMES, apply_tags, parse_tags
-from texts import BAD_ENDING_TEXT, BAD_ENDING_TITLE, BAD_REASONS, CUTSCENES
+from texts import BAD_REASONS, CUTSCENES, ENDINGS, FINAL_CHOICE_TEXT
 
 ASSETS = Path(__file__).parent.parent / "assets"
 ROOM_IMAGE = ASSETS / "Room.jpeg"
-BAD_IMAGE = ASSETS / "Bad.jpeg"
+ENDING_IMAGES = {
+    "remember": ASSETS / "Remember.jpeg",
+    "forget": ASSETS / "Forget.jpeg",
+    "bad": ASSETS / "Bad.jpeg",
+}
 CUTSCENE_IMAGES = {
     1: ASSETS / "The Pier.jpeg",
     2: ASSETS / "The Rooftop.jpeg",
@@ -51,7 +55,7 @@ def reset_game():
     st.session_state.wrong_codes = 0   # wrong codes typed at the door
     st.session_state.escaped = False   # True when the Game Master says the door opened
     st.session_state.deadline = None   # the moment the clock runs out (set at Start)
-    st.session_state.ending = None     # None while playing, "bad" when the player loses
+    st.session_state.ending = None     # None while playing; then "remember", "forget" or "bad"
     st.session_state.reason = None     # why the player lost: "time", "moves" or "codes"
     st.session_state.cutscene = None   # the cutscene playing now: {"number": 1, "ends_at": time}
 
@@ -118,15 +122,21 @@ if st.session_state.screen == "start":
         st.rerun()
     st.stop()
 
-# ---------- Bad ending screen ----------
-if st.session_state.ending == "bad":
-    st.title(BAD_ENDING_TITLE)
-    st.image(str(BAD_IMAGE), width="stretch")
-    st.caption(BAD_REASONS[st.session_state.reason])
-    st.write(BAD_ENDING_TEXT)
-    if st.button("Play again", type="primary"):
-        reset_game()
-        st.rerun()
+# ---------- Ending screen (remember, forget or bad) ----------
+if st.session_state.ending:
+    ending = ENDINGS[st.session_state.ending]
+    # Side by side (like the game screen), so everything fits on one screen
+    picture_side, text_side = st.columns(2, vertical_alignment="center")
+    with picture_side:
+        st.image(str(ENDING_IMAGES[st.session_state.ending]), width="stretch")
+    with text_side:
+        st.title(ending["title"])
+        if st.session_state.ending == "bad":
+            st.caption(BAD_REASONS[st.session_state.reason])
+        st.write(ending["text"])
+        if st.button("Play again", type="primary"):
+            reset_game()
+            st.rerun()
     st.stop()
 
 # ---------- Game screen: picture on the left, chat on the right ----------
@@ -152,8 +162,16 @@ with left:
     items = [ITEM_NAMES[i] for i in st.session_state.inventory]
     st.write("🔑 Items: " + (", ".join(items) if items else "none"))
     st.write(f"🚪 Wrong door codes: {st.session_state.wrong_codes} / {MAX_WRONG_CODES}")
-    if st.session_state.escaped:
-        st.success("The door opens onto white light. (The final choice comes in M4d.)")
+    if st.session_state.escaped and not scene:
+        # The door is open: the player decides how the story ends
+        st.write(FINAL_CHOICE_TEXT)
+        remember_col, forget_col = st.columns(2)
+        if remember_col.button("Remember", type="primary", width="stretch"):
+            st.session_state.ending = "remember"
+            st.rerun()
+        if forget_col.button("Forget", width="stretch"):
+            st.session_state.ending = "forget"
+            st.rerun()
 
 with right:
     chat_box = st.container(height=520)
@@ -161,8 +179,9 @@ with right:
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.write(message["content"])
-    # No typing while a memory is playing
-    player_text = None if scene else st.chat_input("Type what you do...")
+    # No typing while a memory is playing, or after the door is open
+    no_typing = scene or st.session_state.escaped
+    player_text = None if no_typing else st.chat_input("Type what you do...")
 
 if player_text:
     if time_is_up(st.session_state, time.time()):
