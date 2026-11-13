@@ -4,6 +4,25 @@ PLACEHOLDERS: Yada will replace these with their own words. The code does not
 need to change, only the texts in this file.
 """
 
+# The three memories that come back (cutscenes)
+CUTSCENES = {
+    1: {
+        "title": "The Pier",
+        "caption": "[PLACEHOLDER] Two friends laugh on a wooden pier at the festival, "
+                   "taking silly photos with an old camera.",
+    },
+    2: {
+        "title": "The Rooftop",
+        "caption": "[PLACEHOLDER] A warm summer night. Two people lie on a rooftop, "
+                   "looking up at the stars. Something quietly changes between them.",
+    },
+    3: {
+        "title": "That Night",
+        "caption": "[PLACEHOLDER] Rain. Raised voices. Red tail lights fade down the street. "
+                   "Then only silence.",
+    },
+}
+
 BAD_ENDING_TITLE = "The procedure erases too much"
 
 # Why the player lost (shown above the ending text)

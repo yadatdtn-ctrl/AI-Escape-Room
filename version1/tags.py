@@ -24,16 +24,20 @@ def apply_tags(tags, state):
     """Change the game state according to the tags.
 
     state needs: inventory (list), cutscenes (list), wrong_codes (int), escaped (bool).
+    Returns the numbers of cutscenes that are NEW (seen for the first time).
     """
+    new_cutscenes = []
     for name, value in tags:
         if name == "ITEM" and value in ITEM_NAMES:
             if value not in state["inventory"]:
                 state["inventory"].append(value)
-        elif name == "CUTSCENE" and value.isdigit():
+        elif name == "CUTSCENE" and value in ("1", "2", "3"):
             if int(value) not in state["cutscenes"]:
                 state["cutscenes"].append(int(value))
+                new_cutscenes.append(int(value))
         elif name == "WRONG_DOOR":
             state["wrong_codes"] += 1
         elif name == "ESCAPED":
             state["escaped"] = True
         # Any other tag is ignored on purpose
+    return new_cutscenes

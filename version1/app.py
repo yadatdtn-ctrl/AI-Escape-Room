@@ -10,13 +10,18 @@ import streamlit as st
 from llm import get_reply, use_mock
 from prompts import OPENING_TEXT
 from rules import check_limits, time_is_up
-from settings import MAX_MOVES, MAX_WRONG_CODES, TIME_LIMIT_SECONDS
+from settings import CUTSCENE_SECONDS, MAX_MOVES, MAX_WRONG_CODES, TIME_LIMIT_SECONDS
 from tags import ITEM_NAMES, apply_tags, parse_tags
-from texts import BAD_ENDING_TEXT, BAD_ENDING_TITLE, BAD_REASONS
+from texts import BAD_ENDING_TEXT, BAD_ENDING_TITLE, BAD_REASONS, CUTSCENES
 
 ASSETS = Path(__file__).parent.parent / "assets"
 ROOM_IMAGE = ASSETS / "Room.jpeg"
 BAD_IMAGE = ASSETS / "Bad.jpeg"
+CUTSCENE_IMAGES = {
+    1: ASSETS / "The Pier.jpeg",
+    2: ASSETS / "The Rooftop.jpeg",
+    3: ASSETS / "That Night.jpeg",
+}
 
 INTRO = (
     "You will wake up in a room that is not yours. "
@@ -48,12 +53,24 @@ def reset_game():
     st.session_state.deadline = None   # the moment the clock runs out (set at Start)
     st.session_state.ending = None     # None while playing, "bad" when the player loses
     st.session_state.reason = None     # why the player lost: "time", "moves" or "codes"
+    st.session_state.cutscene = None   # the cutscene playing now: {"number": 1, "ends_at": time}
 
 
 def lose(reason):
     """End the game with the bad ending."""
     st.session_state.ending = "bad"
     st.session_state.reason = reason
+
+
+def format_time(seconds):
+    minutes, seconds = divmod(int(seconds), 60)
+    return f"{minutes}:{seconds:02d}"
+
+
+def start_cutscene(number):
+    """Play a cutscene and stop the clock: the player gets the seconds back."""
+    st.session_state.cutscene = {"number": number, "ends_at": time.time() + CUTSCENE_SECONDS}
+    st.session_state.deadline += CUTSCENE_SECONDS
 
 
 @st.fragment(run_every=1)
@@ -63,8 +80,15 @@ def live_clock():
     if seconds_left <= 0:
         lose("time")
         st.rerun()  # redraw the whole page so the bad ending appears
-    minutes, seconds = divmod(seconds_left, 60)
-    st.write(f"⏱ Time left: {minutes}:{seconds:02d}")
+    st.write(f"⏱ Time left: {format_time(seconds_left)}")
+
+
+@st.fragment(run_every=0.5)
+def cutscene_watch():
+    """Draws nothing. Checks twice a second if the cutscene is over."""
+    if time.time() >= st.session_state.cutscene["ends_at"]:
+        st.session_state.cutscene = None
+        st.rerun()  # redraw the whole page: back to the room and the live clock
 
 
 # session_state = memory that Streamlit keeps while the page is open
@@ -109,11 +133,21 @@ if st.session_state.ending == "bad":
 left, right = st.columns(2)
 
 with left:
-    st.image(str(ROOM_IMAGE), width="stretch")
-    if st.session_state.escaped:
-        st.write("⏱ The clock has stopped.")
+    scene = st.session_state.cutscene
+    if scene:
+        # A memory is playing: show its picture and caption, and freeze the clock
+        st.image(str(CUTSCENE_IMAGES[scene["number"]]), width="stretch")
+        info = CUTSCENES[scene["number"]]
+        st.write(f"**{info['title']}**: {info['caption']}")
+        frozen = st.session_state.deadline - scene["ends_at"]  # time left when it ends
+        st.write(f"⏱ Time left: {format_time(frozen)} (paused)")
+        cutscene_watch()
     else:
-        live_clock()
+        st.image(str(ROOM_IMAGE), width="stretch")
+        if st.session_state.escaped:
+            st.write("⏱ The clock has stopped.")
+        else:
+            live_clock()
     st.write(f"👣 Moves: {st.session_state.moves} / {MAX_MOVES}")
     items = [ITEM_NAMES[i] for i in st.session_state.inventory]
     st.write("🔑 Items: " + (", ".join(items) if items else "none"))
@@ -127,7 +161,8 @@ with right:
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.write(message["content"])
-    player_text = st.chat_input("Type what you do...")
+    # No typing while a memory is playing
+    player_text = None if scene else st.chat_input("Type what you do...")
 
 if player_text:
     if time_is_up(st.session_state, time.time()):
@@ -145,7 +180,7 @@ if player_text:
     st.session_state.deadline += time.time() - waiting_since
     # Cut the hidden tags out of the text, then let them change the game state
     clean_reply, tags = parse_tags(reply)
-    apply_tags(tags, st.session_state)
+    new_cutscenes = apply_tags(tags, st.session_state)
     st.session_state.messages.append(
         {"role": "assistant", "content": clean_reply or "The room stays silent.", "raw": reply}
     )
@@ -153,4 +188,6 @@ if player_text:
     lost_reason = check_limits(st.session_state)
     if lost_reason:
         lose(lost_reason)
+    elif new_cutscenes:
+        start_cutscene(new_cutscenes[0])  # if there are several, we play the first
     st.rerun()
