@@ -9,6 +9,7 @@ import streamlit as st
 
 from game_state import count_move, load_config, new_state
 from llm import interpret, narrate, use_mock
+from pictures import pick, trimmed, zoom
 from texts import BAD_REASONS, CUTSCENES, ENDINGS, FINAL_CHOICE_TEXT, OPENING_TEXT, TRY_AGAIN_TEXT
 from validators import check_limits, handle_action, time_is_up
 
@@ -27,6 +28,16 @@ CUTSCENE_IMAGES = {
     2: ASSETS / "The Rooftop.jpeg",
     3: ASSETS / "That Night.jpeg",
 }
+ROOM_OPEN_IMAGE = ASSETS / "Room_open.jpeg"  # the same room with the drawer open (by Yada)
+DIARY_IMAGE = ASSETS / "Diary.jpeg"  # the diary page (by Yada)
+AVATAR_YOU = ASSETS / "Avatar_you.png"  # chat icon for the player (by Yada)
+AVATAR_NARRATOR = ASSETS / "Avatar_narrator.png"  # chat icon for the narrator (by Yada)
+
+# Cutscene fade-in (from the design): CSS only for the container with key="cutscene"
+FADE_IN_CSS = """<style>
+.st-key-cutscene img { animation: fadein 1.5s ease-in; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+</style>"""
 
 INTRO = (
     "You will wake up in a room that is not yours. "
@@ -44,7 +55,25 @@ HOW_TO_PLAY = f"""
 - The door allows only **{LIMITS["max_wrong_codes"]} wrong codes**.
 """
 
-st.set_page_config(page_title="Sky - Version 2", layout="wide")
+st.set_page_config(page_title="Sky - Version 2", page_icon=":material/auto_stories:", layout="wide")
+
+
+@st.cache_data
+def room_picture(drawer_open=False):
+    """The room picture without its dark frame (cut once, then kept in Streamlit's cache).
+    After the drawer is opened, the picture with the open drawer is used, if it exists."""
+    path = pick(ROOM_OPEN_IMAGE, str(ROOM_IMAGE)) if drawer_open else ROOM_IMAGE
+    return trimmed(path)
+
+
+@st.cache_data
+def avatars():
+    """Yada's pixel icons, zoomed in so they are readable when small; Material icons if missing."""
+    return {
+        "user": zoom(AVATAR_YOU, keep=0.5) if AVATAR_YOU.exists() else ":material/person:",
+        "assistant": zoom(AVATAR_NARRATOR, keep=0.8) if AVATAR_NARRATOR.exists()
+        else ":material/auto_stories:",
+    }
 
 
 def reset_game():
@@ -83,7 +112,15 @@ def live_clock():
     if seconds_left <= 0:
         lose("time")
         st.rerun()  # redraw the whole page so the bad ending appears
-    st.write(f"⏱ Time left: {format_time(seconds_left)}")
+    st.metric("Time left", format_time(seconds_left))
+
+
+@st.dialog("Sky's diary", width="medium")
+def diary_page():
+    """The diary page again. It shows the exact text from the config (all clues), and costs no move."""
+    if DIARY_IMAGE.exists():
+        st.image(str(DIARY_IMAGE), width="stretch", alt="A page of Sky's diary")
+    st.markdown(CONFIG["objects"]["diary"]["examine"])
 
 
 @st.fragment(run_every=0.5)
@@ -113,14 +150,19 @@ with st.sidebar:
 
 # ---------- Start screen ----------
 if st.session_state.screen == "start":
-    st.title("Sky")
-    st.write(INTRO)
-    st.subheader("How to play")
-    st.markdown(HOW_TO_PLAY)
-    if st.button("Start", type="primary"):
-        st.session_state.screen = "game"
-        game["deadline"] = time.time() + LIMITS["time_seconds"]  # the clock starts NOW
-        st.rerun()
+    # Same shape as the game screen: picture on the left, words on the right
+    picture_side, text_side = st.columns(2, vertical_alignment="center")
+    with picture_side:
+        st.image(room_picture(), width="stretch", alt="Sky's attic room at night")
+    with text_side:
+        st.title("Sky")
+        st.write(INTRO)
+        st.subheader("How to play")
+        st.markdown(HOW_TO_PLAY)
+        if st.button("Start", type="primary", icon=":material/play_arrow:"):
+            st.session_state.screen = "game"
+            game["deadline"] = time.time() + LIMITS["time_seconds"]  # the clock starts NOW
+            st.rerun()
     st.stop()
 
 # ---------- Ending screen (remember, forget or bad) ----------
@@ -129,7 +171,8 @@ if st.session_state.ending:
     # Side by side (like the game screen), so everything fits on one screen
     picture_side, text_side = st.columns(2, vertical_alignment="center")
     with picture_side:
-        st.image(str(ENDING_IMAGES[st.session_state.ending]), width="stretch")
+        st.image(str(ENDING_IMAGES[st.session_state.ending]), width="stretch",
+                 alt=ENDINGS[st.session_state.ending]["title"])
     with text_side:
         st.title(ending["title"])
         if st.session_state.ending == "bad":
@@ -146,23 +189,39 @@ left, right = st.columns(2)
 with left:
     scene = st.session_state.cutscene
     if scene:
-        # A memory is playing: show its picture and caption, and freeze the clock
-        st.image(str(CUTSCENE_IMAGES[scene["number"]]), width="stretch")
+        # A memory is playing: its picture fades in, and the clock is frozen
         info = CUTSCENES[scene["number"]]
+        st.html(FADE_IN_CSS)
+        with st.container(key="cutscene"):
+            st.image(str(CUTSCENE_IMAGES[scene["number"]]), width="stretch", alt=info["title"])
         st.write(f"**{info['title']}**: {info['caption']}")
-        frozen = game["deadline"] - scene["ends_at"]  # time left when it ends
-        st.write(f"⏱ Time left: {format_time(frozen)} (paused)")
         cutscene_watch()
+    elif game["drawer_open"]:
+        st.image(room_picture(drawer_open=True), width="stretch",
+                 alt="Sky's attic room at night, the drawer is open")
     else:
-        st.image(str(ROOM_IMAGE), width="stretch")
-        if game["door_open"]:
-            st.write("⏱ The clock has stopped.")
+        st.image(room_picture(), width="stretch", alt="Sky's attic room at night")
+
+    # Status panel: time, moves and wrong codes as small cards in one row
+    with st.container(border=True, horizontal=True):
+        if scene:
+            frozen = game["deadline"] - scene["ends_at"]  # time left when the memory ends
+            st.metric("Time left", format_time(frozen), delta="paused", delta_color="off",
+                      delta_arrow="off")
+        elif game["door_open"]:
+            st.metric("Time left", "stopped")
         else:
             live_clock()
-    st.write(f"👣 Moves: {game['moves']} / {LIMITS['max_moves']}")
+        st.metric("Moves", f"{game['moves']} / {LIMITS['max_moves']}")
+        st.metric("Wrong codes", f"{game['wrong_codes']} / {LIMITS['max_wrong_codes']}")
     items = [CONFIG["items"][i]["name"] for i in game["inventory"]]
-    st.write("🔑 Items: " + (", ".join(items) if items else "none"))
-    st.write(f"🚪 Wrong door codes: {game['wrong_codes']} / {LIMITS['max_wrong_codes']}")
+    st.markdown(":material/backpack: **Items:** " + (", ".join(items) if items else "none"))
+
+    # The diary page can be read again after the player found it (no move, no LLM)
+    if "diary" in game["examined"] and not scene:
+        if st.button("Open the diary page", icon=":material/menu_book:"):
+            diary_page()
+
     if game["door_open"] and not scene:
         # The door is open: the player decides how the story ends
         st.write(FINAL_CHOICE_TEXT)
@@ -178,7 +237,7 @@ with right:
     chat_box = st.container(height=520)
     with chat_box:
         for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
+            with st.chat_message(message["role"], avatar=avatars()[message["role"]]):
                 st.write(message["content"])
                 if message.get("note"):  # the LLM failed and a plain text was used
                     st.caption("(fallback: " + message["note"] + ")")

@@ -1,0 +1,27 @@
+# Theme for Version 2 only (this file sits next to version2/app.py).
+# A dark "attic at night" look with pixel fonts. Version 1 keeps the default look.
+
+[theme]
+base = "dark"
+primaryColor = "#a16207"              # raincoat yellow, dark enough for white button text
+backgroundColor = "#0e1220"           # night blue
+secondaryBackgroundColor = "#1a2033"  # a little lighter, for panels and the chat input
+textColor = "#ece4d4"                 # old paper
+borderColor = "#2e3550"
+linkColor = "#f2c14e"
+font = "VT323:https://fonts.googleapis.com/css2?family=VT323&display=swap"
+headingFont = "'Press Start 2P':https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+baseFontSize = 24                     # VT323 is small, so the body text is bigger (Yada: 20 was too small)
+headingFontSizes = ["32px", "24px", "18px", "16px", "14px", "12px"]
+metricValueFontSize = "1.8rem"
+baseRadius = "none"                   # square corners, like pixels
+
+[theme.sidebar]
+backgroundColor = "#141a2b"
+secondaryBackgroundColor = "#1a2033"
+textColor = "#ece4d4"
+borderColor = "#2e3550"
+primaryColor = "#a16207"
+linkColor = "#f2c14e"
+codeBackgroundColor = "#1a2033"
+codeTextColor = "#ece4d4"

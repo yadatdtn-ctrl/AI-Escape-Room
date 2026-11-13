@@ -188,6 +188,14 @@ def test_narrate_replaces_a_story_without_the_clue():
     assert story == DIARY_FACTS["text"] and problem is None
 
 
+def test_interpreter_is_told_to_forgive_clumsy_sentences():
+    """M10 (found by Yada): 'unlock the key at the drawer' gave invalid. An item plus an object means use."""
+    text = build_interpreter_instruction(CONFIG)
+    assert "clumsy" in text and "unlock the key at the drawer" in text
+    for secret in [DOOR_CODE, "02.11"]:
+        assert secret not in text, secret  # the extra example holds no secret
+
+
 def test_narrator_is_told_to_keep_the_clue_phrases():
     assert "must_include" in NARRATOR_INSTRUCTION
 

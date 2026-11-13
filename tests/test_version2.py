@@ -72,6 +72,63 @@ def test_how_to_play_says_one_action_per_message():
     assert any("one action per message" in m.value.lower() for m in at.markdown)
 
 
+def test_status_panel_shows_moves_and_wrong_codes_as_metrics():
+    """M10 (G2): the status lines became small metric cards."""
+    at = new_game()
+    say(at, "hello")
+    values = {m.label: m.value for m in at.metric}
+    assert values["Moves"] == "1 / 30" and values["Wrong codes"] == "0 / 3"
+    assert "Time left" in values
+
+
+def test_diary_page_button_appears_only_after_reading_the_diary():
+    """M10 (G6): the diary page can be opened again, but only after the player found it."""
+    at = new_game()
+    assert "Open the diary page" not in labels(at)
+    say(at, "read the diary")
+    end_cutscene(at)
+    assert "Open the diary page" in labels(at)
+    moves_before = game(at)["moves"]
+    click(at, "Open the diary page")
+    assert game(at)["moves"] == moves_before, "reading the page again is free"
+    assert any("The best day of my life" in m.value for m in at.markdown)
+
+
+def test_room_picture_dark_frame_is_cut_off_but_file_unchanged():
+    """M10 (feedback from Yada): the room picture had a wide dark frame and did not fit."""
+    from pictures import trimmed
+    path = ROOT / "assets" / "Room.jpeg"
+    before = path.stat().st_mtime
+    picture = trimmed(path)
+    assert picture.size[0] < 2752 and picture.size[1] < 1536, "the dark frame is gone"
+    assert picture.size[0] > 2000, "the room itself is not cut"
+    assert path.stat().st_mtime == before, "the file in assets/ is not changed"
+
+
+def test_pick_uses_the_picture_only_when_the_file_exists():
+    """M10 (G7): Yada's pictures are used when they exist, otherwise the old icon stays."""
+    from pictures import pick
+    assert pick(ROOT / "assets" / "Room.jpeg", ":material/person:").endswith("Room.jpeg")
+    assert pick(ROOT / "assets" / "missing.png", ":material/person:") == ":material/person:"
+
+
+def test_zoom_keeps_the_middle_of_a_square_icon():
+    from pictures import zoom
+    icon = zoom(ROOT / "assets" / "Avatar_you.png", keep=0.5)
+    assert icon.size == (512, 512)
+
+
+def test_room_picture_changes_after_the_drawer_opens():
+    at = new_game()
+    assert at.get("image"), "the room picture is on the page"
+    assert not any("the drawer is open" in str(node.proto) for node in at.get("image"))
+    say(at, "examine the raincoat")
+    say(at, "take the key")
+    say(at, "open the drawer with the key")
+    end_cutscene(at)
+    assert any("the drawer is open" in str(node.proto) for node in at.get("image"))
+
+
 def test_examine_and_take_fill_the_items_line():
     at = new_game()
     say(at, "examine the raincoat")
