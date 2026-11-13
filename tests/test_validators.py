@@ -247,6 +247,31 @@ def test_door_code_never_in_facts():
         assert DOOR_CODE not in str(result["facts"]), result["facts"]
 
 
+def test_clue_phrases_travel_in_the_facts():
+    """M10 (A): the clue phrases of a text are listed, so the story can be checked."""
+    state = new_state(CONFIG)
+    diary = act(state, action="examine", target="diary")["facts"]["must_include"]
+    assert "The best day of my life" in diary and "07.03" in diary[-1]
+    act(state, action="examine", target="raincoat")
+    act(state, action="take", target="brass_key")
+    opened = act(state, action="use", item="brass_key", target="drawer")["facts"]["must_include"]
+    assert "For our anniversary: 02.11" in opened
+    assert act(state, action="examine", target="bed")["facts"]["must_include"] == []
+
+
+def test_every_clue_phrase_is_really_in_its_text():
+    """Guards the config against typos: a phrase that is not in the text could never be found."""
+    for obj in CONFIG["objects"].values():
+        for phrase in obj.get("must_include", []):
+            assert phrase in obj["examine"], phrase
+        opened = obj.get("when_opened", {})
+        for phrase in opened.get("must_include", []):
+            assert phrase in opened["text"], phrase
+    for item in CONFIG["items"].values():
+        for phrase in item.get("must_include", []):
+            assert phrase in item["description"], phrase
+
+
 # ---------- runner ----------
 if __name__ == "__main__":
     tests = [(name, fn) for name, fn in sorted(globals().items())

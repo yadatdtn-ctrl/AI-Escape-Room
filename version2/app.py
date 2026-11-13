@@ -38,6 +38,7 @@ HOW_TO_PLAY = f"""
 - Type what you want to do in normal words, for example:
   *examine the raincoat*, *read the diary*, *take the key*,
   *open the drawer with the key*, *type 1234 on the keypad*.
+- Send **one action per message**: take the key first, then read the diary.
 - You have **{LIMITS["time_seconds"] // 60} minutes** and **{LIMITS["max_moves"]} moves**.
   Every message you send is 1 move. The clock starts when you press Start.
 - The door allows only **{LIMITS["max_wrong_codes"]} wrong codes**.

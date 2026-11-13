@@ -13,8 +13,8 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "version2"))
 
 from game_state import load_config  # noqa: E402
-from llm import (build_interpreter_instruction, interpret, mock_interpret, narrate,  # noqa: E402
-                 parse_action, safe_story)
+from llm import (NARRATOR_INSTRUCTION, build_interpreter_instruction, interpret,  # noqa: E402
+                 mock_interpret, narrate, parse_action, safe_story)
 
 CONFIG = load_config()
 DOOR_CODE = CONFIG["solutions"]["door_code"]
@@ -161,6 +161,35 @@ def test_narrator_text_with_door_code_is_replaced():
 def test_safe_story_replaces_empty_text():
     assert safe_story("", FACTS, CONFIG) == FACTS["text"]
     assert safe_story("A calm line.", FACTS, CONFIG) == "A calm line."
+
+
+# ---------- M10 (A): the story must keep every clue ----------
+DIARY_FACTS = {"outcome": "success", "action": "examine", "reason": None, "about": "diary",
+               "text": "The diary says: 'The best day of my life.' A stub: 'Pier Festival, 14 Oct'.",
+               "must_include": ["The best day of my life", "Pier Festival, 14 Oct"],
+               "inventory": []}
+
+
+def test_story_that_drops_a_clue_is_replaced_by_the_config_text():
+    short = "The diary lies open. A ticket stub from the Pier Festival is stuck beside it."
+    assert safe_story(short, DIARY_FACTS, CONFIG) == DIARY_FACTS["text"]
+
+
+def test_story_with_every_clue_is_kept_even_in_other_letter_case():
+    good = "You read it: the best day of my life. The stub says pier festival, 14 oct."
+    assert safe_story(good, DIARY_FACTS, CONFIG) == good
+
+
+def test_narrate_replaces_a_story_without_the_clue():
+    def fake_ask(system, user, temperature, json_mode):
+        return "The diary lies open and the room is quiet."
+
+    story, problem = narrate(DIARY_FACTS, CONFIG, ask=fake_ask)
+    assert story == DIARY_FACTS["text"] and problem is None
+
+
+def test_narrator_is_told_to_keep_the_clue_phrases():
+    assert "must_include" in NARRATOR_INSTRUCTION
 
 
 # ---------- runner ----------

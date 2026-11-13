@@ -27,7 +27,8 @@ def item_names(state, config):
     return [config["items"][i]["name"] for i in state["inventory"]]
 
 
-def result(state, config, action, allowed, reason, about=None, text=None, cutscene=None):
+def result(state, config, action, allowed, reason, about=None, text=None, cutscene=None,
+           must_include=None):
     """One answer of the referee. 'facts' is all the narrator is allowed to know."""
     if text is None:
         text = config["plain_messages"].get(reason, "")
@@ -37,6 +38,7 @@ def result(state, config, action, allowed, reason, about=None, text=None, cutsce
         "reason": reason,
         "about": about,
         "text": text,  # a sentence from the config, never the player's words
+        "must_include": must_include or [],  # clue phrases the story has to keep word for word
         "inventory": item_names(state, config),
     }
     return {"allowed": allowed, "reason": reason, "facts": facts, "cutscene": cutscene}
@@ -68,17 +70,20 @@ def do_examine(action, state, config):
             state["examined"].append(object_id)
         reveal(state, obj.get("reveals", []))
         text = obj["examine"]
+        clues = obj.get("must_include", [])
         if object_id == "drawer" and state["drawer_open"]:
             text = obj["examine_when_open"]
+            clues = []
         cutscene = play_cutscene(state, obj.get("cutscene_on_first_examine"))
-        return result(state, config, "examine", True, None, obj["name"], text, cutscene)
+        return result(state, config, "examine", True, None, obj["name"], text, cutscene, clues)
     item_id = find_id(target, config["items"])
     if item_id is None:
         return refuse(state, config, "examine", "UNKNOWN_TARGET")
     item = config["items"][item_id]
     if item_id not in state["revealed"]:
         return refuse(state, config, "examine", "NOT_VISIBLE", item["name"])
-    return result(state, config, "examine", True, None, item["name"], item["description"])
+    return result(state, config, "examine", True, None, item["name"], item["description"],
+                  must_include=item.get("must_include", []))
 
 
 def do_take(action, state, config):
@@ -114,7 +119,9 @@ def do_use(action, state, config):
         state["drawer_open"] = True
         reveal(state, obj["when_opened"]["reveals"])
         cutscene = play_cutscene(state, obj["when_opened"]["cutscene"])
-        return result(state, config, "use", True, None, obj["name"], obj["when_opened"]["text"], cutscene)
+        opened = obj["when_opened"]
+        return result(state, config, "use", True, None, obj["name"], opened["text"], cutscene,
+                      opened.get("must_include", []))
 
     # the only other case: the vinyl record on the record player
     if state["record_played"]:

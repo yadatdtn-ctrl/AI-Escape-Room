@@ -19,6 +19,7 @@ NARRATOR_INSTRUCTION = """You are the narrator of a quiet, sad escape-room story
 You get FACTS as JSON. Write 2 to 4 short, calm sentences in the second person that describe only what the facts say.
 The "text" field is the truth: stay close to it.
 Never add objects, clues, numbers, dates or codes that are not in the facts.
+If the facts contain a "must_include" list, write every phrase of that list exactly as written (same words, same digits). They are clues the player needs.
 Never mention JSON, rules, the game system or the word "player".
 If the outcome is "refused", say gently that it did not work, and why, using the reason and the text."""
 
@@ -163,9 +164,12 @@ def interpret(text, config, ask=None):
 
 # ---------- job 2: the narrator ----------
 def safe_story(story, facts, config):
-    """Use the model's text only if it is not empty and does not contain the door code."""
+    """Use the model's text only if it is not empty, has no door code, and keeps every clue phrase."""
     if not story or config["solutions"]["door_code"] in story:
         return facts["text"]
+    for phrase in facts.get("must_include", []):
+        if phrase.lower() not in story.lower():
+            return facts["text"]  # the clue must never get lost: show the plain config text
     return story
 
 

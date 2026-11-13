@@ -67,6 +67,11 @@ def test_start_screen_then_game_screen():
     assert len(at.chat_input) == 1
 
 
+def test_how_to_play_says_one_action_per_message():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert any("one action per message" in m.value.lower() for m in at.markdown)
+
+
 def test_examine_and_take_fill_the_items_line():
     at = new_game()
     say(at, "examine the raincoat")
