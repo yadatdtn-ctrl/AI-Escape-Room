@@ -14,6 +14,9 @@ from PIL import Image  # Pillow is installed together with Streamlit
 OBJECT_IMAGES = {
     "corkboard": Path(__file__).parent.parent / "assets" / "Corkboard.png",
     "calendar": Path(__file__).parent.parent / "assets" / "Calendar.png",
+    "bed": Path(__file__).parent.parent / "assets" / "Bed.png",
+    "desk": Path(__file__).parent.parent / "assets" / "Desk.png",
+    "record_player": Path(__file__).parent.parent / "assets" / "RecordPlayer.png",
 }
 
 

@@ -59,7 +59,7 @@ flowchart LR
     A -->|"whole chat history"| L["llm.py"]
     S["prompts.py<br/>Game Master script<br/>with ALL secrets<br/>(door code 0211 inside)"] --> L
     L -->|"request"| G[("Gemini API<br/>or mock")]
-    G -->|"story text + hidden tags<br/>ITEM, CUTSCENE, WRONG_DOOR, ESCAPED"| L
+    G -->|"story + hidden tags"| L
     L --> A
     A -->|"answer text"| T["tags.py<br/>cut the tags out,<br/>apply them to the state"]
     T --> ST[("session state<br/>items, cutscenes,<br/>wrong codes, escaped")]
@@ -155,9 +155,9 @@ In Version 2, the sidebar box **"Show what the referee decided"** shows, under e
 ### Tests (no API needed)
 
 ```
-python tests/test_validators.py    # V2 rules, 26 tests
-python tests/test_llm.py           # V2 interpreter and narrator with fake answers, 21 tests
-python tests/test_version2.py      # V2 page, 26 tests
+python tests/test_validators.py    # V2 rules, 29 tests
+python tests/test_llm.py           # V2 interpreter and narrator with fake answers, 22 tests
+python tests/test_version2.py      # V2 page, 27 tests
 python tests/test_version1.py      # V1 page, 8 tests
 ```
 

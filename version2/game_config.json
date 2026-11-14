@@ -97,7 +97,10 @@
         "player",
         "gramophone"
       ],
-      "examine": "A record player stands on the shelf. Nothing is on it.",
+      "examine": "A record player stands on the shelf. Nothing is on it. A small label on the side says: 'Side A: for you.'",
+      "must_include": [
+        "Side A: for you"
+      ],
       "accepts": "vinyl_record",
       "when_used": {
         "cutscene": 3,
@@ -128,21 +131,36 @@
     "desk": {
       "name": "desk",
       "aliases": [
-        "table"
+        "table",
+        "camera strap",
+        "strap"
       ],
-      "examine": "A wooden desk. A diary lies on it, and it has a drawer."
+      "examine": "A wooden desk. A diary lies on it, and it has a drawer. A cold cup of tea stands beside it, and a camera strap lies next to the cup. The camera itself is gone.",
+      "must_include": [
+        "camera strap"
+      ]
     },
     "bed": {
       "name": "bed",
-      "aliases": [],
-      "examine": "A small bed with a faded blanket. It looks slept in a long time ago."
+      "aliases": [
+        "pillow",
+        "pillows",
+        "blanket"
+      ],
+      "examine": "A small bed with a faded blanket. Two pillows lie side by side, but only one has a dent. Under the other pillow is a note: 'Come home before the rain.'",
+      "must_include": [
+        "Come home before the rain"
+      ]
     },
     "window": {
       "name": "round window",
       "aliases": [
         "window"
       ],
-      "examine": "A round window. Soft blue light from the sea comes through it."
+      "examine": "A round window. Soft blue light from the sea comes through it. Far away you see a wooden pier with no lights. A dry flower from the festival lies on the sill.",
+      "must_include": [
+        "wooden pier"
+      ]
     }
   },
   "plain_messages": {

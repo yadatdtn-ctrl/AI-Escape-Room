@@ -72,6 +72,15 @@ def test_how_to_play_says_one_action_per_message():
     assert any("one action per message" in m.value.lower() for m in at.markdown)
 
 
+def test_how_to_play_does_not_give_away_the_solution():
+    """M11 (idea from Yada): the examples must teach the sentence form, not the puzzle path."""
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    text = " ".join(m.value.lower() for m in at.markdown if "one action per message" in m.value.lower())
+    assert text, "the How to play text is on the page"
+    for spoiler in ["raincoat", "brass", "take the key", "drawer", "diary", "record", "corkboard"]:
+        assert spoiler not in text, spoiler
+
+
 def test_status_panel_shows_moves_and_wrong_codes_as_metrics():
     """M10 (G2): the status lines became small metric cards."""
     at = new_game()
@@ -148,6 +157,15 @@ def test_examining_the_calendar_shows_its_picture_on_the_left():
     at = new_game()
     say(at, "examine the calendar")
     assert shows_picture_of(at, "calendar")
+
+
+def test_bed_desk_and_record_player_show_their_pictures():
+    """M11: the three new close-ups. (The window picture is added when its file exists.)"""
+    for sentence, word in [("examine the bed", "bed"), ("examine the desk", "desk"),
+                           ("examine the record player", "record player")]:
+        at = new_game()
+        say(at, sentence)
+        assert shows_picture_of(at, word), sentence
 
 
 def test_the_room_comes_back_with_the_next_action():

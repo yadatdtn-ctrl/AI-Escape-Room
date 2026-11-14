@@ -256,7 +256,40 @@ def test_clue_phrases_travel_in_the_facts():
     act(state, action="take", target="brass_key")
     opened = act(state, action="use", item="brass_key", target="drawer")["facts"]["must_include"]
     assert "For our anniversary: 02.11" in opened
-    assert act(state, action="examine", target="bed")["facts"]["must_include"] == []
+    assert act(state, action="examine", target="door")["facts"]["must_include"] == []  # no clue there
+
+
+# ---------- M11: more clues on objects that were almost empty ----------
+NEW_CLUES = {
+    "bed": "Come home before the rain",
+    "window": "wooden pier",
+    "desk": "camera strap",
+    "record_player": "Side A: for you",
+}
+
+
+def test_bed_window_desk_and_record_player_now_have_a_protected_clue():
+    state = new_state(CONFIG)
+    for object_id, phrase in NEW_CLUES.items():
+        facts = act(state, action="examine", target=object_id)["facts"]
+        assert phrase in facts["must_include"], object_id
+        assert phrase in facts["text"], object_id
+
+
+def test_the_new_clues_are_atmosphere_only_no_code_and_no_anniversary_date():
+    """The door code still comes from the record sleeve alone. The new texts must not confuse that."""
+    for object_id in NEW_CLUES:
+        text = CONFIG["objects"][object_id]["examine"]
+        assert DOOR_CODE not in text and "02.11" not in text, object_id
+        assert not any(part.isdigit() and len(part) == 4 for part in text.split()), object_id
+
+
+def test_the_new_examine_texts_change_no_state_and_start_no_cutscene():
+    state = new_state(CONFIG)
+    for object_id in NEW_CLUES:
+        result = act(state, action="examine", target=object_id)
+        assert result["allowed"] and result["cutscene"] is None, object_id
+    assert state["inventory"] == [] and state["drawer_open"] is False
 
 
 def test_every_clue_phrase_is_really_in_its_text():
