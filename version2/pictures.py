@@ -21,9 +21,37 @@ OBJECT_IMAGES = {
 }
 
 
+# Small pictures of the items (to be made by Yada). Until a file exists, the item card
+# shows a Material icon instead.
+ITEM_IMAGES = {
+    "brass_key": Path(__file__).parent.parent / "assets" / "Item_brass_key.png",
+    "vinyl_record": Path(__file__).parent.parent / "assets" / "Item_vinyl_record.png",
+}
+
+
 def pick(path, fallback):
     """Use the picture file if it exists, otherwise the fallback (for example a Material icon)."""
     return str(path) if Path(path).exists() else fallback
+
+
+# A pixel "?" made of 5 x 7 squares (1 = a grey square)
+QUESTION_MARK = ["01110", "10001", "00001", "00010", "00100", "00000", "00100"]
+
+
+def locked_card(width=320):
+    """The card of a memory the player has not found yet: flat dark grey with a pixel "?".
+    Nothing of the real picture is in it, so nothing is given away. Same 16:9 shape as the memories."""
+    height = width * 9 // 16
+    card = Image.new("RGB", (width, height), (38, 42, 58))
+    square = height // 9  # the size of one pixel of the "?"
+    left = (width - 5 * square) // 2
+    top = (height - 7 * square) // 2
+    for row, line in enumerate(QUESTION_MARK):
+        for column, mark in enumerate(line):
+            if mark == "1":
+                x, y = left + column * square, top + row * square
+                card.paste((110, 116, 140), (x, y, x + square, y + square))
+    return card
 
 
 def zoom(path, keep=0.5):

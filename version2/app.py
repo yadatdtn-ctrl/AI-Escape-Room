@@ -2,6 +2,7 @@
 
 Run from the project folder:  streamlit run version2/app.py
 """
+import os
 import time
 from pathlib import Path
 
@@ -9,7 +10,7 @@ import streamlit as st
 
 from game_state import count_move, load_config, new_state
 from llm import interpret, narrate, use_mock
-from pictures import OBJECT_IMAGES, pick, trimmed, zoom
+from pictures import ITEM_IMAGES, OBJECT_IMAGES, locked_card, pick, trimmed, zoom
 from texts import BAD_REASONS, CUTSCENES, ENDINGS, FINAL_CHOICE_TEXT, OPENING_TEXT, TRY_AGAIN_TEXT
 from validators import check_limits, find_id, handle_action, time_is_up
 
@@ -32,6 +33,8 @@ ROOM_OPEN_IMAGE = ASSETS / "Room_open.jpeg"  # the same room with the drawer ope
 DIARY_IMAGE = ASSETS / "Diary.jpeg"  # the diary page (by Yada)
 AVATAR_YOU = ASSETS / "Avatar_you.png"  # chat icon for the player (by Yada)
 AVATAR_NARRATOR = ASSETS / "Avatar_narrator.png"  # chat icon for the narrator (by Yada)
+ITEM_ICONS = {"brass_key": ":material/key:", "vinyl_record": ":material/album:"}  # until Yada's pictures
+CARD_WIDTH = 170  # width in pixels of one memory card picture
 
 # Cutscene fade-in (from the design): CSS only for the container with key="cutscene"
 FADE_IN_CSS = """<style>
@@ -87,10 +90,28 @@ def reset_game():
     st.session_state.reason = None     # why the player lost: "time", "moves" or "codes"
     st.session_state.cutscene = None   # the cutscene playing now: {"number": 1, "ends_at": time}
     st.session_state.viewing = None    # id of the object whose close-up picture is shown, or None
+    st.session_state.stats = None      # the numbers of the finished run (saved once, at the end)
+
+
+def save_stats():
+    """Save the numbers of this run when the ending starts, so they do not change later.
+    Time used = 5 minutes minus what was left (waiting for Gemini and typing time are not counted).
+    If the door is open, the clock stopped at that moment."""
+    if st.session_state.stats is not None:
+        return
+    stopped_at = game.get("door_opened_at") or time.time()
+    seconds_left = max(0, game["deadline"] - stopped_at)
+    st.session_state.stats = {
+        "time_used": int(min(LIMITS["time_seconds"], LIMITS["time_seconds"] - seconds_left)),
+        "moves": game["moves"],
+        "wrong_codes": game["wrong_codes"],
+        "memories": len(game["cutscenes"]),
+    }
 
 
 def lose(reason):
     """End the game with the bad ending."""
+    save_stats()
     st.session_state.ending = "bad"
     st.session_state.reason = reason
 
@@ -98,6 +119,35 @@ def lose(reason):
 def format_time(seconds):
     minutes, seconds = divmod(int(seconds), 60)
     return f"{minutes}:{seconds:02d}"
+
+
+TYPE_DELAY = 0.03        # seconds between two words of the typewriter story
+TYPE_MAX_SECONDS = 1.5   # a long story is typed faster, so it never takes longer than this
+
+
+def typewriter_on():
+    """The tests switch the typewriter off (SKY_NO_TYPEWRITER=true) so they stay fast."""
+    return os.getenv("SKY_NO_TYPEWRITER", "false").lower() != "true"
+
+
+def words(text, delay):
+    """The text word by word, with a short pause after each word (for st.write_stream)."""
+    for word in text.split(" "):
+        yield word + " "
+        time.sleep(delay)
+
+
+def bar_value(part, whole):
+    """A number between 0.0 and 1.0 for st.progress (never below 0 and never above 1)."""
+    return max(0.0, min(1.0, part / whole))
+
+
+def lock_icons(wrong, allowed):
+    """One lock per try: a normal lock for a try left, a crossed-out lock for a try used.
+    The words are there too, so the icons are not the only way to read it."""
+    left = allowed - wrong
+    icons = ":material/lock: " * left + ":material/no_encryption: " * wrong
+    return f"{icons.strip()} {left} {'try' if left == 1 else 'tries'} left"
 
 
 def start_cutscene(number):
@@ -115,6 +165,7 @@ def live_clock():
         lose("time")
         st.rerun()  # redraw the whole page so the bad ending appears
     st.metric("Time left", format_time(seconds_left))
+    st.progress(bar_value(seconds_left, LIMITS["time_seconds"]), text=f"Time {format_time(seconds_left)}")
 
 
 @st.dialog("Sky's diary", width="medium")
@@ -123,6 +174,14 @@ def diary_page():
     if DIARY_IMAGE.exists():
         st.image(str(DIARY_IMAGE), width="stretch", alt="A page of Sky's diary")
     st.markdown(CONFIG["objects"]["diary"]["examine"])
+
+
+@st.dialog("A memory", width="large")
+def memory_page(number):
+    """A memory that was found before, shown again. It costs no move and no LLM call."""
+    info = CUTSCENES[number]
+    st.image(str(CUTSCENE_IMAGES[number]), width="stretch", alt=info["title"])
+    st.write(f"**{info['title']}**: {info['caption']}")
 
 
 @st.fragment(run_every=0.5)
@@ -180,6 +239,13 @@ if st.session_state.ending:
         if st.session_state.ending == "bad":
             st.caption(BAD_REASONS[st.session_state.reason])
         st.write(ending["text"])
+        run = st.session_state.stats
+        if run:  # the run in numbers, like the end screen of a game
+            with st.container(horizontal=True):
+                st.metric("Time used", format_time(run["time_used"]))
+                st.metric("Moves", f"{run['moves']} / {LIMITS['max_moves']}")
+                st.metric("Wrong codes", f"{run['wrong_codes']} / {LIMITS['max_wrong_codes']}")
+                st.metric("Memories found", f"{run['memories']} / {len(CUTSCENES)}")
         if st.button("Play again", type="primary"):
             reset_game()
             st.rerun()
@@ -203,26 +269,45 @@ with left:
         looking_at = st.session_state.viewing
         st.image(str(OBJECT_IMAGES[looking_at]), width="stretch",
                  alt=f"A close-up of the {CONFIG['objects'][looking_at]['name']}")
+        if st.button("Back to the room", icon=":material/arrow_back:"):  # free: no move, no LLM
+            st.session_state.viewing = None
+            st.rerun()
     elif game["drawer_open"]:
         st.image(room_picture(drawer_open=True), width="stretch",
                  alt="Sky's attic room at night, the drawer is open")
     else:
         st.image(room_picture(), width="stretch", alt="Sky's attic room at night")
 
-    # Status panel: time, moves and wrong codes as small cards in one row
-    with st.container(border=True, horizontal=True):
-        if scene:
-            frozen = game["deadline"] - scene["ends_at"]  # time left when the memory ends
-            st.metric("Time left", format_time(frozen), delta="paused", delta_color="off",
-                      delta_arrow="off")
-        elif game["door_open"]:
-            st.metric("Time left", "stopped")
-        else:
-            live_clock()
-        st.metric("Moves", f"{game['moves']} / {LIMITS['max_moves']}")
-        st.metric("Wrong codes", f"{game['wrong_codes']} / {LIMITS['max_wrong_codes']}")
-    items = [CONFIG["items"][i]["name"] for i in game["inventory"]]
-    st.markdown(":material/backpack: **Items:** " + (", ".join(items) if items else "none"))
+    # Status panel (the HUD): each number has a bar or icons under it
+    with st.container(border=True):
+        time_col, moves_col, codes_col = st.columns(3)
+        with time_col:
+            if scene:
+                frozen = game["deadline"] - scene["ends_at"]  # time left when the memory ends
+                st.metric("Time left", format_time(frozen), delta="paused", delta_color="off",
+                          delta_arrow="off")
+                st.progress(bar_value(frozen, LIMITS["time_seconds"]), text=f"Time {format_time(frozen)}")
+            elif game["door_open"]:
+                st.metric("Time left", "stopped")
+            else:
+                live_clock()
+        with moves_col:
+            st.metric("Moves", f"{game['moves']} / {LIMITS['max_moves']}")
+            st.progress(bar_value(game["moves"], LIMITS["max_moves"]),
+                        text=f"Moves used {game['moves']} / {LIMITS['max_moves']}")
+        with codes_col:
+            st.metric("Wrong codes", f"{game['wrong_codes']} / {LIMITS['max_wrong_codes']}")
+            st.markdown(lock_icons(game["wrong_codes"], LIMITS["max_wrong_codes"]))
+    # Items: one small card per item (the picture if it exists, and always an icon and the name)
+    with st.container(horizontal=True):
+        if not game["inventory"]:
+            st.caption(":material/backpack: No items yet")
+        for item_id in game["inventory"]:
+            item_name = CONFIG["items"][item_id]["name"]
+            with st.container(border=True, width="content"):
+                if item_id in ITEM_IMAGES and ITEM_IMAGES[item_id].exists():
+                    st.image(str(ITEM_IMAGES[item_id]), width=64, alt=item_name)
+                st.markdown(f"{ITEM_ICONS.get(item_id, ':material/backpack:')} **{item_name}**")
 
     # The diary page can be read again after the player found it (no move, no LLM)
     if "diary" in game["examined"] and not scene:
@@ -234,9 +319,11 @@ with left:
         st.write(FINAL_CHOICE_TEXT)
         remember_col, forget_col = st.columns(2)
         if remember_col.button("Remember", type="primary", width="stretch"):
+            save_stats()
             st.session_state.ending = "remember"
             st.rerun()
         if forget_col.button("Forget", width="stretch"):
+            save_stats()
             st.session_state.ending = "forget"
             st.rerun()
 
@@ -245,7 +332,20 @@ with right:
     with chat_box:
         for message in st.session_state.messages:
             with st.chat_message(message["role"], avatar=avatars()[message["role"]]):
-                st.write(message["content"])
+                if message.get("fresh"):
+                    # The newest story is typed once. It is marked as shown FIRST, so a fast
+                    # next message cannot make the story disappear.
+                    message["fresh"] = False
+                    if typewriter_on():
+                        started = time.time()
+                        count = max(1, len(message["content"].split(" ")))
+                        st.write_stream(words(message["content"], min(TYPE_DELAY, TYPE_MAX_SECONDS / count)))
+                        if not scene:  # during a memory the clock is already paused: no refund
+                            game["deadline"] += time.time() - started  # typing is not the player's time
+                    else:
+                        st.write(message["content"])
+                else:
+                    st.write(message["content"])
                 if message.get("note"):  # the LLM failed and a plain text was used
                     st.caption("(fallback: " + message["note"] + ")")
                 if show_debug and message.get("debug"):
@@ -253,6 +353,20 @@ with right:
     # No typing while a memory is playing, or after the door is open
     no_typing = scene or game["door_open"]
     player_text = None if no_typing else st.chat_input("Type what you do...")
+
+    # Memories found: three small cards under the chat. Dark grey with a ? until the memory has played.
+    st.caption("Memories found")
+    with st.container(horizontal=True):
+        for number, info in CUTSCENES.items():
+            with st.container(border=True, width=CARD_WIDTH + 30):
+                if number in game["cutscenes"]:
+                    st.image(str(CUTSCENE_IMAGES[number]), width=CARD_WIDTH, alt=info["title"])
+                    st.caption(info["title"])
+                    if not scene and st.button("Replay", key=f"memory_{number}",
+                                               icon=":material/replay:", width="stretch"):
+                        memory_page(number)
+                else:
+                    st.image(locked_card(), width=CARD_WIDTH, alt="A locked memory")
 
 if player_text:
     if time_is_up(game, time.time()):
@@ -281,12 +395,15 @@ if player_text:
     story, problem_2 = narrate(outcome["facts"], CONFIG)  # facts only, not the player's words
     # Waiting for Gemini is not the player's fault: give that time back
     game["deadline"] += time.time() - waiting_since
+    if game["door_open"] and not game.get("door_opened_at"):
+        game["door_opened_at"] = time.time()  # the clock stops for the ending stats
     verdict = "allowed" if outcome["allowed"] else "refused: " + outcome["reason"]
     st.session_state.messages.append({
         "role": "assistant",
         "content": story,
         "note": problem_2,
         "debug": f"action {action} -> {verdict}",
+        "fresh": True,  # typed word by word the first time it is drawn
     })
     # Did the player just run out of moves or wrong codes?
     lost_reason = check_limits(game, CONFIG)

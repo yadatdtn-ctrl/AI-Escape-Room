@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 os.environ["USE_MOCK_LLM"] = "true"  # fake interpreter and narrator: no key, no quota
+os.environ["SKY_NO_TYPEWRITER"] = "true"  # the story appears at once, so the tests stay fast
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "version2"))
@@ -175,6 +176,20 @@ def test_bed_desk_record_player_and_window_show_their_pictures():
         assert shows_picture_of(at, word), sentence
 
 
+def test_a_close_up_has_a_button_back_to_the_room_that_costs_nothing():
+    """Yada: after the corkboard there was no way back to the room except typing."""
+    for sentence, word in [("look at the corkboard", "corkboard"), ("look at the bed", "bed"),
+                           ("examine the calendar", "calendar"), ("look out of the window", "window")]:
+        at = new_game()
+        assert "Back to the room" not in labels(at)
+        say(at, sentence)
+        assert shows_picture_of(at, word) and "Back to the room" in labels(at), sentence
+        moves = game(at)["moves"]
+        click(at, "Back to the room")
+        assert not shows_picture_of(at, word) and "Back to the room" not in labels(at), sentence
+        assert game(at)["moves"] == moves, "going back is free"
+
+
 def test_the_room_comes_back_with_the_next_action():
     at = new_game()
     say(at, "look at the corkboard")
@@ -198,6 +213,168 @@ def test_every_object_picture_in_the_list_is_a_real_object_with_a_file():
     for object_id, path in OBJECT_IMAGES.items():
         assert object_id in objects, object_id
         assert path.exists(), (object_id, path)
+
+
+# ---------- M12 task 5: ending stats ----------
+def stats_on_screen(at):
+    return {m.label: m.value for m in at.metric}
+
+
+def test_ending_shows_the_run():
+    at = new_game()
+    play_until_record_played(at)  # 5 moves, 2 memories (the drawer and the record)
+    say(at, "type 0211")
+    click(at, "Remember")
+    shown = stats_on_screen(at)
+    assert shown["Moves"] == "6 / 30" and shown["Wrong codes"] == "0 / 3"
+    assert shown["Memories found"] == "2 / 3"
+    assert "Time used" in shown
+
+
+def test_the_stats_do_not_change_after_the_ending_started():
+    at = new_game()
+    play_until_record_played(at)
+    say(at, "type 0211")
+    click(at, "Forget")
+    first = stats_on_screen(at)["Time used"]
+    time.sleep(1.2)
+    at.run()
+    assert stats_on_screen(at)["Time used"] == first
+
+
+def test_time_out_shows_the_full_time_used_never_more():
+    """Review focus 4."""
+    at = new_game()
+    g = game(at)
+    g["deadline"] = time.time() - 1  # the clock ran out a second ago
+    at.session_state["game"] = g
+    at.run()
+    assert stats_on_screen(at)["Time used"] == "5:00"
+
+
+def test_play_again_clears_the_stats_and_locks_the_memories_again():
+    """Review focus 3."""
+    at = new_game()
+    play_until_record_played(at)
+    say(at, "type 0211")
+    click(at, "Forget")
+    click(at, "Play again")
+    assert at.session_state["stats"] is None
+    click(at, "Start")
+    assert locked_cards(at) == 3
+
+
+# ---------- M12 task 4: item cards ----------
+def test_empty_backpack_says_so():
+    at = new_game()
+    assert any("No items yet" in c.value for c in at.caption)
+
+
+def test_item_card_shows_an_icon_and_the_name_when_there_is_no_picture():
+    at = new_game()
+    say(at, "examine the raincoat")
+    say(at, "take the key")
+    assert any(":material/key:" in m.value and "brass key" in m.value for m in at.markdown)
+    assert not any("No items yet" in c.value for c in at.caption)
+
+
+def test_every_item_picture_in_the_list_is_a_real_item():
+    from game_state import load_config
+    from pictures import ITEM_IMAGES
+    for item_id in ITEM_IMAGES:
+        assert item_id in load_config()["items"], item_id
+
+
+# ---------- M12 task 3: typewriter story ----------
+def with_typewriter(play):
+    """Run play() with the typewriter switched on, then switch it off again."""
+    os.environ["SKY_NO_TYPEWRITER"] = "false"
+    try:
+        return play()
+    finally:
+        os.environ["SKY_NO_TYPEWRITER"] = "true"
+
+
+def test_newest_story_is_marked_as_shown_before_it_is_typed():
+    """Review focus 1: if the player sends the next message while the text is typing,
+    the story must not be lost, so it is marked as shown first."""
+    at = new_game()
+    say(at, "examine the raincoat")
+    assert at.session_state["messages"][-1].get("fresh") is False
+    assert any("brass key" in m.value for m in at.markdown)
+
+
+def test_typing_time_is_given_back_to_the_clock():
+    def play():
+        at = new_game()
+        before = game(at)["deadline"]
+        say(at, "examine the bed")  # about 30 words, no memory starts
+        return game(at)["deadline"] - before
+
+    assert with_typewriter(play) > 0.5, "the typing seconds are added back"
+
+
+def test_typing_time_is_not_given_back_twice_during_a_memory():
+    """Review focus 2: the clock is already paused for the memory (8 s)."""
+    def play():
+        at = new_game()
+        before = game(at)["deadline"]
+        say(at, "read the diary")  # a memory starts
+        return game(at)["deadline"] - before
+
+    assert with_typewriter(play) < 8 + 0.5
+
+
+# ---------- M12 task 2: game HUD ----------
+def test_hud_shows_bars_for_time_and_moves():
+    at = new_game()
+    say(at, "hello")
+    texts = [str(node.proto) for node in at.get("progress")]
+    assert any("Time" in t for t in texts), texts
+    assert any("Moves used 1 / 30" in t for t in texts), texts
+
+
+def test_wrong_codes_are_shown_as_lock_icons_with_text():
+    at = new_game()
+    assert any("3 tries left" in m.value and m.value.count(":material/lock:") == 3
+               for m in at.markdown)
+    play_until_record_played(at)
+    say(at, "type 1410")
+    assert any("2 tries left" in m.value and m.value.count(":material/lock:") == 2
+               and m.value.count(":material/no_encryption:") == 1 for m in at.markdown)
+
+
+# ---------- M12 task 1: memory cards ----------
+def locked_cards(at):
+    return sum("A locked memory" in str(node.proto) for node in at.get("image"))
+
+
+def test_memory_cards_are_locked_at_the_start():
+    at = new_game()
+    assert locked_cards(at) == 3
+    assert not any(b.label == "Replay" for b in at.button)
+
+
+def test_a_played_memory_unlocks_its_card_and_can_be_seen_again_for_free():
+    at = new_game()
+    say(at, "read the diary")  # plays memory 1
+    end_cutscene(at)
+    assert locked_cards(at) == 2
+    assert [b.label for b in at.button].count("Replay") == 1, "one short button, for the found memory"
+    assert any("The Pier" in c.value for c in at.caption), "the title is a caption on the card"
+    moves = game(at)["moves"]
+    at.button(key="memory_1").click().run()
+    assert game(at)["moves"] == moves, "opening a memory costs no move"
+
+
+def test_locked_card_is_a_small_dark_placeholder_with_no_memory_in_it():
+    """Yada: not a blurred preview, only dark grey with a ? so nothing of the memory shows."""
+    from pictures import locked_card
+    card = locked_card()
+    assert card.size[0] * 9 == card.size[1] * 16, "same 16:9 shape as the memory pictures"
+    assert card.size[0] <= 400, "small"
+    assert max(max(pixel) for pixel in card.convert("RGB").getdata()) < 160, "dark, no bright parts"
+    assert len(set(card.convert("RGB").getdata())) <= 3, "flat colors only: background, ?, nothing else"
 
 
 def test_examine_and_take_fill_the_items_line():
