@@ -113,4 +113,16 @@ In tests 1, 2b and 6 the **story text and the game state disagree**, because in 
 4. One action per message: the interpreter can return only one action (seen on the first real run: "take the key, read the diary" took only the key).
 5. If the LLM is busy (a 503 error was seen), the player gets "please try again" and the move is not counted; a reply can also be lost if the next message is typed too fast (test 20 incident).
 
+## Re-run after the clue fix (M10a), real Gemini
+
+The narrator drop (see "The narrator can shorten the facts" above) was fixed in M10a: Python now checks that the story still contains every clue phrase of the facts (`must_include`), and shows the plain config text if one is missing. Played with real Gemini on the new code (one run each, one game, moves 1 to 3, items none, wrong codes 0/3):
+
+| Sentence | Required clue phrases | Result | Screenshot |
+|---|---|---|---|
+| `read the diary` | "The best day of my life", "Pier Festival, 14 Oct", "I will never forget 07.03" | All three are in the story. Cutscene 1 started. | ![diary](screenshots/v2_rerun_diary.png) |
+| `look at the corkboard` | "23.06", "happy birthday to you, 07.03" | Both are in the story. | ![corkboard](screenshots/v2_rerun_corkboard.png) |
+| `examine the calendar` | "November", "Exhibition!!" | Both are in the story. | ![calendar](screenshots/v2_rerun_calendar.png) |
+
+Honest notes: this is one run per sentence, so it shows the three clues survived, not that the narrator never drops one. The guard makes a lost clue impossible in the text on screen, but a story that shows the plain config text instead (instead of the narrator's version) would look the same in a screenshot. The sidebar box "Show what the referee decided" was off, so these screenshots do not show which of the two texts was used.
+
 _The report (`docs/report.md`) is written by Yada in M9, using this file as the evidence._
