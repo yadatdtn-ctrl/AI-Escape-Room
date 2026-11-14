@@ -129,6 +129,52 @@ def test_room_picture_changes_after_the_drawer_opens():
     assert any("the drawer is open" in str(node.proto) for node in at.get("image"))
 
 
+def shows_picture_of(at, word):
+    """True if a picture whose alt text has this word is on the page."""
+    return any(word in str(node.proto) for node in at.get("image"))
+
+
+def test_examining_the_corkboard_shows_its_picture_on_the_left():
+    """M10c: a clue object with a picture is shown big, and costs no extra move."""
+    at = new_game()
+    assert not shows_picture_of(at, "corkboard")
+    say(at, "look at the corkboard")
+    end_cutscene(at)
+    assert shows_picture_of(at, "corkboard")
+    assert game(at)["moves"] == 1
+
+
+def test_examining_the_calendar_shows_its_picture_on_the_left():
+    at = new_game()
+    say(at, "examine the calendar")
+    assert shows_picture_of(at, "calendar")
+
+
+def test_the_room_comes_back_with_the_next_action():
+    at = new_game()
+    say(at, "look at the corkboard")
+    say(at, "take the key")  # not the corkboard any more
+    assert not shows_picture_of(at, "corkboard")
+
+
+def test_a_refused_examine_shows_no_object_picture():
+    at = new_game()
+    say(at, "examine the moon")  # not in the room: refused, no picture
+    assert not shows_picture_of(at, "corkboard")
+    say(at, "type 1234")  # the keypad does not answer yet
+    assert not shows_picture_of(at, "corkboard")
+
+
+def test_every_object_picture_in_the_list_is_a_real_object_with_a_file():
+    """A typo in an id or a file name would silently show the room again, so check them here."""
+    from game_state import load_config
+    from pictures import OBJECT_IMAGES
+    objects = load_config()["objects"]
+    for object_id, path in OBJECT_IMAGES.items():
+        assert object_id in objects, object_id
+        assert path.exists(), (object_id, path)
+
+
 def test_examine_and_take_fill_the_items_line():
     at = new_game()
     say(at, "examine the raincoat")

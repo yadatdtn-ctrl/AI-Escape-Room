@@ -9,6 +9,14 @@ from pathlib import Path
 from PIL import Image  # Pillow is installed together with Streamlit
 
 
+# Close-up pictures of clue objects (made by Yada). One line per picture: object id -> file.
+# After a successful "examine" of one of these objects, the left side shows its picture.
+OBJECT_IMAGES = {
+    "corkboard": Path(__file__).parent.parent / "assets" / "Corkboard.png",
+    "calendar": Path(__file__).parent.parent / "assets" / "Calendar.png",
+}
+
+
 def pick(path, fallback):
     """Use the picture file if it exists, otherwise the fallback (for example a Material icon)."""
     return str(path) if Path(path).exists() else fallback

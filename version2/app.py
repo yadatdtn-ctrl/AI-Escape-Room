@@ -9,9 +9,9 @@ import streamlit as st
 
 from game_state import count_move, load_config, new_state
 from llm import interpret, narrate, use_mock
-from pictures import pick, trimmed, zoom
+from pictures import OBJECT_IMAGES, pick, trimmed, zoom
 from texts import BAD_REASONS, CUTSCENES, ENDINGS, FINAL_CHOICE_TEXT, OPENING_TEXT, TRY_AGAIN_TEXT
-from validators import check_limits, handle_action, time_is_up
+from validators import check_limits, find_id, handle_action, time_is_up
 
 CONFIG = load_config()  # the rulebook (only Python reads it)
 LIMITS = CONFIG["limits"]
@@ -85,6 +85,7 @@ def reset_game():
     st.session_state.ending = None     # None while playing; then "remember", "forget" or "bad"
     st.session_state.reason = None     # why the player lost: "time", "moves" or "codes"
     st.session_state.cutscene = None   # the cutscene playing now: {"number": 1, "ends_at": time}
+    st.session_state.viewing = None    # id of the object whose close-up picture is shown, or None
 
 
 def lose(reason):
@@ -196,6 +197,11 @@ with left:
             st.image(str(CUTSCENE_IMAGES[scene["number"]]), width="stretch", alt=info["title"])
         st.write(f"**{info['title']}**: {info['caption']}")
         cutscene_watch()
+    elif st.session_state.viewing:
+        # A close-up of the object the player just examined (until the next message)
+        looking_at = st.session_state.viewing
+        st.image(str(OBJECT_IMAGES[looking_at]), width="stretch",
+                 alt=f"A close-up of the {CONFIG['objects'][looking_at]['name']}")
     elif game["drawer_open"]:
         st.image(room_picture(drawer_open=True), width="stretch",
                  alt="Sky's attic room at night, the drawer is open")
@@ -265,6 +271,12 @@ if player_text:
         st.rerun()
     count_move(game)
     outcome = handle_action(action, game, CONFIG)
+    # Close-up picture: only after a successful examine of an object that has a picture file
+    st.session_state.viewing = None
+    if outcome["allowed"] and action.get("action") == "examine":
+        seen_id = find_id(action.get("target"), CONFIG["objects"])
+        if seen_id in OBJECT_IMAGES and OBJECT_IMAGES[seen_id].exists():
+            st.session_state.viewing = seen_id
     story, problem_2 = narrate(outcome["facts"], CONFIG)  # facts only, not the player's words
     # Waiting for Gemini is not the player's fault: give that time back
     game["deadline"] += time.time() - waiting_since
