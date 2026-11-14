@@ -68,6 +68,16 @@ def test_start_screen_then_game_screen():
     assert len(at.chat_input) == 1
 
 
+def test_start_button_is_under_the_picture_so_it_is_always_visible():
+    """Yada's screen: the button was lowest on the page, behind the long instructions."""
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    image_nodes = [n for n in at.get("image")]
+    assert image_nodes and "Start" in labels(at)
+    # In the page tree, the first column holds the picture and the Start button; the second the text.
+    first_column = at.columns[0]
+    assert any(b.label == "Start" for b in first_column.button), "Start is in the picture's column"
+
+
 def test_how_to_play_says_one_action_per_message():
     at = AppTest.from_file(APP, default_timeout=30).run()
     assert any("one action per message" in m.value.lower() for m in at.markdown)
@@ -327,32 +337,47 @@ def test_typing_time_is_not_given_back_twice_during_a_memory():
 
 # ---------- M12 task 2: game HUD ----------
 def test_hud_shows_bars_for_time_and_moves():
+    """The numbers stay in the metric cards; each has a thin bar under it (no second text line,
+    so the panel is short enough for a laptop and a phone)."""
     at = new_game()
     say(at, "hello")
-    texts = [str(node.proto) for node in at.get("progress")]
-    assert any("Time" in t for t in texts), texts
-    assert any("Moves used 1 / 30" in t for t in texts), texts
+    bars = [node.proto.value for node in at.get("progress")]
+    assert len(bars) == 2, bars          # one for the time, one for the moves
+    assert 3 in bars, bars               # the moves bar: 1 of 30 moves is 3 percent
+    assert all(not node.proto.text for node in at.get("progress")), "no repeated number in the bar"
 
 
-def test_wrong_codes_are_shown_as_lock_icons_with_text():
+def test_wrong_codes_are_shown_as_lock_icons_under_the_number():
+    """A normal lock for a try left, a crossed-out lock for a try used. The words are the
+    metric card right above ("Wrong codes 0 / 3"), so the icons need no text of their own."""
     at = new_game()
-    assert any("3 tries left" in m.value and m.value.count(":material/lock:") == 3
-               for m in at.markdown)
+    assert any(m.value.strip() == ":material/lock: " * 2 + ":material/lock:" for m in at.markdown)
     play_until_record_played(at)
     say(at, "type 1410")
-    assert any("2 tries left" in m.value and m.value.count(":material/lock:") == 2
-               and m.value.count(":material/no_encryption:") == 1 for m in at.markdown)
+    assert any(m.value.strip() == ":material/lock: :material/lock: :material/no_encryption:"
+               for m in at.markdown)
+    assert {m.label: m.value for m in at.metric}["Wrong codes"] == "1 / 3"
 
 
 # ---------- M12 task 1: memory cards ----------
+REPLAY_ICON = ":material/replay:"  # the replay button shows only an icon, so it fits any card width
+
+
 def locked_cards(at):
     return sum("A locked memory" in str(node.proto) for node in at.get("image"))
+
+
+def test_the_three_memory_cards_are_three_columns_of_one_row():
+    """Yada's screen: the third card wrapped below the screen edge. Columns cannot wrap."""
+    at = new_game()
+    # the page has 2 big columns (picture | chat) and now 3 more for the memory cards
+    assert len(at.columns) == 5, len(at.columns)
 
 
 def test_memory_cards_are_locked_at_the_start():
     at = new_game()
     assert locked_cards(at) == 3
-    assert not any(b.label == "Replay" for b in at.button)
+    assert not any(b.label == REPLAY_ICON for b in at.button)
 
 
 def test_a_played_memory_unlocks_its_card_and_can_be_seen_again_for_free():
@@ -360,7 +385,7 @@ def test_a_played_memory_unlocks_its_card_and_can_be_seen_again_for_free():
     say(at, "read the diary")  # plays memory 1
     end_cutscene(at)
     assert locked_cards(at) == 2
-    assert [b.label for b in at.button].count("Replay") == 1, "one short button, for the found memory"
+    assert [b.label for b in at.button].count(REPLAY_ICON) == 1, "one icon button, for the found memory"
     assert any("The Pier" in c.value for c in at.caption), "the title is a caption on the card"
     moves = game(at)["moves"]
     at.button(key="memory_1").click().run()

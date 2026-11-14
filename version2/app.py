@@ -34,7 +34,8 @@ DIARY_IMAGE = ASSETS / "Diary.jpeg"  # the diary page (by Yada)
 AVATAR_YOU = ASSETS / "Avatar_you.png"  # chat icon for the player (by Yada)
 AVATAR_NARRATOR = ASSETS / "Avatar_narrator.png"  # chat icon for the narrator (by Yada)
 ITEM_ICONS = {"brass_key": ":material/key:", "vinyl_record": ":material/album:"}  # until Yada's pictures
-CARD_WIDTH = 170  # width in pixels of one memory card picture
+HUD_WIDTH = 150   # width in pixels of one block of the status panel (time, moves, wrong codes)
+CHAT_HEIGHT = 400  # height in pixels of the chat box
 
 # Cutscene fade-in (from the design): CSS only for the container with key="cutscene"
 FADE_IN_CSS = """<style>
@@ -59,7 +60,9 @@ HOW_TO_PLAY = f"""
 - The door allows only **{LIMITS["max_wrong_codes"]} wrong codes**.
 """
 
-st.set_page_config(page_title="Sky - Version 2", page_icon=":material/auto_stories:", layout="wide")
+# The sidebar starts closed: it is wide, and the game needs the room (Restart is still inside it).
+st.set_page_config(page_title="Sky - Version 2", page_icon=":material/auto_stories:", layout="wide",
+                   initial_sidebar_state="collapsed")
 
 
 @st.cache_data
@@ -144,10 +147,9 @@ def bar_value(part, whole):
 
 def lock_icons(wrong, allowed):
     """One lock per try: a normal lock for a try left, a crossed-out lock for a try used.
-    The words are there too, so the icons are not the only way to read it."""
+    The metric card right above ("Wrong codes 0 / 3") already says it in words."""
     left = allowed - wrong
-    icons = ":material/lock: " * left + ":material/no_encryption: " * wrong
-    return f"{icons.strip()} {left} {'try' if left == 1 else 'tries'} left"
+    return (":material/lock: " * left + ":material/no_encryption: " * wrong).strip()
 
 
 def start_cutscene(number):
@@ -165,7 +167,7 @@ def live_clock():
         lose("time")
         st.rerun()  # redraw the whole page so the bad ending appears
     st.metric("Time left", format_time(seconds_left))
-    st.progress(bar_value(seconds_left, LIMITS["time_seconds"]), text=f"Time {format_time(seconds_left)}")
+    st.progress(bar_value(seconds_left, LIMITS["time_seconds"]))
 
 
 @st.dialog("Sky's diary", width="medium")
@@ -180,7 +182,7 @@ def diary_page():
 def memory_page(number):
     """A memory that was found before, shown again. It costs no move and no LLM call."""
     info = CUTSCENES[number]
-    st.image(str(CUTSCENE_IMAGES[number]), width="stretch", alt=info["title"])
+    st.image(str(CUTSCENE_IMAGES[number]), width=CARD_PICTURE, alt=info["title"])
     st.write(f"**{info['title']}**: {info['caption']}")
 
 
@@ -215,15 +217,17 @@ if st.session_state.screen == "start":
     picture_side, text_side = st.columns(2, vertical_alignment="center")
     with picture_side:
         st.image(room_picture(), width="stretch", alt="Sky's attic room at night")
+        # The button sits under the picture, so it is always on screen, even when the
+        # instructions on the right are long.
+        if st.button("Start", type="primary", icon=":material/play_arrow:", width="stretch"):
+            st.session_state.screen = "game"
+            game["deadline"] = time.time() + LIMITS["time_seconds"]  # the clock starts NOW
+            st.rerun()
     with text_side:
         st.title("Sky")
         st.write(INTRO)
         st.subheader("How to play")
         st.markdown(HOW_TO_PLAY)
-        if st.button("Start", type="primary", icon=":material/play_arrow:"):
-            st.session_state.screen = "game"
-            game["deadline"] = time.time() + LIMITS["time_seconds"]  # the clock starts NOW
-            st.rerun()
     st.stop()
 
 # ---------- Ending screen (remember, forget or bad) ----------
@@ -278,23 +282,25 @@ with left:
     else:
         st.image(room_picture(), width="stretch", alt="Sky's attic room at night")
 
-    # Status panel (the HUD): each number has a bar or icons under it
-    with st.container(border=True):
-        time_col, moves_col, codes_col = st.columns(3)
+    # Status panel (the HUD): each number has a thin bar or lock icons under it.
+    # Three small blocks in a row; on a narrow screen (a phone) they wrap instead of stacking one by one.
+    with st.container(border=True, horizontal=True):
+        time_col = st.container(width=HUD_WIDTH)
+        moves_col = st.container(width=HUD_WIDTH)
+        codes_col = st.container(width=HUD_WIDTH)
         with time_col:
             if scene:
                 frozen = game["deadline"] - scene["ends_at"]  # time left when the memory ends
                 st.metric("Time left", format_time(frozen), delta="paused", delta_color="off",
                           delta_arrow="off")
-                st.progress(bar_value(frozen, LIMITS["time_seconds"]), text=f"Time {format_time(frozen)}")
+                st.progress(bar_value(frozen, LIMITS["time_seconds"]))
             elif game["door_open"]:
                 st.metric("Time left", "stopped")
             else:
                 live_clock()
         with moves_col:
             st.metric("Moves", f"{game['moves']} / {LIMITS['max_moves']}")
-            st.progress(bar_value(game["moves"], LIMITS["max_moves"]),
-                        text=f"Moves used {game['moves']} / {LIMITS['max_moves']}")
+            st.progress(bar_value(game["moves"], LIMITS["max_moves"]))
         with codes_col:
             st.metric("Wrong codes", f"{game['wrong_codes']} / {LIMITS['max_wrong_codes']}")
             st.markdown(lock_icons(game["wrong_codes"], LIMITS["max_wrong_codes"]))
@@ -308,11 +314,11 @@ with left:
                 if item_id in ITEM_IMAGES and ITEM_IMAGES[item_id].exists():
                     st.image(str(ITEM_IMAGES[item_id]), width=64, alt=item_name)
                 st.markdown(f"{ITEM_ICONS.get(item_id, ':material/backpack:')} **{item_name}**")
-
-    # The diary page can be read again after the player found it (no move, no LLM)
-    if "diary" in game["examined"] and not scene:
-        if st.button("Open the diary page", icon=":material/menu_book:"):
-            diary_page()
+        # The diary page can be read again after the player found it (no move, no LLM).
+        # It sits in the same row as the items, to save height.
+        if "diary" in game["examined"] and not scene:
+            if st.button("Open the diary page", icon=":material/menu_book:"):
+                diary_page()
 
     if game["door_open"] and not scene:
         # The door is open: the player decides how the story ends
@@ -328,7 +334,7 @@ with left:
             st.rerun()
 
 with right:
-    chat_box = st.container(height=520)
+    chat_box = st.container(height=CHAT_HEIGHT)
     with chat_box:
         for message in st.session_state.messages:
             with st.chat_message(message["role"], avatar=avatars()[message["role"]]):
@@ -356,17 +362,18 @@ with right:
 
     # Memories found: three small cards under the chat. Dark grey with a ? until the memory has played.
     st.caption("Memories found")
-    with st.container(horizontal=True):
-        for number, info in CUTSCENES.items():
-            with st.container(border=True, width=CARD_WIDTH + 30):
-                if number in game["cutscenes"]:
-                    st.image(str(CUTSCENE_IMAGES[number]), width=CARD_WIDTH, alt=info["title"])
-                    st.caption(info["title"])
-                    if not scene and st.button("Replay", key=f"memory_{number}",
-                                               icon=":material/replay:", width="stretch"):
-                        memory_page(number)
-                else:
-                    st.image(locked_card(), width=CARD_WIDTH, alt="A locked memory")
+    # Three columns: they always stay in one row, each takes a third of the width.
+    for column, (number, info) in zip(st.columns(3), CUTSCENES.items()):
+        with column, st.container(border=True):
+            if number in game["cutscenes"]:
+                st.image(str(CUTSCENE_IMAGES[number]), width="stretch", alt=info["title"])
+                st.caption(info["title"])
+                # Icon only, so it fits any card width; the tooltip says what it does
+                if not scene and st.button(":material/replay:", key=f"memory_{number}",
+                                           help=f"Replay: {info['title']}", width="stretch"):
+                    memory_page(number)
+            else:
+                st.image(locked_card(), width="stretch", alt="A locked memory")
 
 if player_text:
     if time_is_up(game, time.time()):

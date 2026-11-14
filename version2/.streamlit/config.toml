@@ -15,6 +15,8 @@ baseFontSize = 24                     # VT323 is small, so the body text is bigg
 headingFontSizes = ["32px", "24px", "18px", "16px", "14px", "12px"]
 metricValueFontSize = "1.8rem"
 baseRadius = "none"                   # square corners, like pixels
+paddingTop = "1rem"                   # less empty space above the game, so it fits a laptop screen
+paddingBottom = "1rem"
 
 [theme.sidebar]
 backgroundColor = "#141a2b"
