@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "version2"))
 
 from game_state import load_config  # noqa: E402
 from llm import (NARRATOR_INSTRUCTION, build_interpreter_instruction, interpret,  # noqa: E402
-                 mock_interpret, narrate, parse_action, safe_story)
+                 mock_interpret, narrate, parse_action, safe_story, short_problem)
 
 CONFIG = load_config()
 DOOR_CODE = CONFIG["solutions"]["door_code"]
@@ -207,6 +207,27 @@ def test_interpreter_is_told_to_forgive_clumsy_sentences():
     assert "clumsy" in text and "unlock the key at the drawer" in text
     for secret in [DOOR_CODE, "02.11"]:
         assert secret not in text, secret  # the extra example holds no secret
+
+
+class ServerError(Exception):
+    """Looks like the error class of the google-genai package."""
+
+
+def test_a_busy_gemini_gives_one_short_note():
+    """M11 (Yada's screenshot): the player saw the whole raw API error text."""
+    raw = ("503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently "
+           "experiencing high demand. Spikes in demand are usually temporary.'}}")
+    assert short_problem(ServerError(raw)) == "Gemini is busy (error 503)"
+
+
+def test_a_used_up_free_quota_gives_one_short_note():
+    raw = "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your quota.'}}"
+    assert short_problem(ServerError(raw)) == "Gemini limit reached (error 429)"
+
+
+def test_other_errors_stay_short_but_keep_their_meaning():
+    note = short_problem(RuntimeError("No API key. Put GEMINI_API_KEY in your .env file. " * 5))
+    assert note.startswith("RuntimeError: No API key") and len(note) <= 80
 
 
 def test_narrator_is_told_to_keep_the_clue_phrases():

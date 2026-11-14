@@ -72,6 +72,12 @@ def test_how_to_play_says_one_action_per_message():
     assert any("one action per message" in m.value.lower() for m in at.markdown)
 
 
+def test_how_to_play_suggests_a_first_step():
+    """M11 (Yada said yes): a gentle start that gives nothing away."""
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert any("start by looking around" in m.value.lower() for m in at.markdown)
+
+
 def test_how_to_play_does_not_give_away_the_solution():
     """M11 (idea from Yada): the examples must teach the sentence form, not the puzzle path."""
     at = AppTest.from_file(APP, default_timeout=30).run()
@@ -159,10 +165,11 @@ def test_examining_the_calendar_shows_its_picture_on_the_left():
     assert shows_picture_of(at, "calendar")
 
 
-def test_bed_desk_and_record_player_show_their_pictures():
-    """M11: the three new close-ups. (The window picture is added when its file exists.)"""
+def test_bed_desk_record_player_and_window_show_their_pictures():
+    """M11: the four new close-ups."""
     for sentence, word in [("examine the bed", "bed"), ("examine the desk", "desk"),
-                           ("examine the record player", "record player")]:
+                           ("examine the record player", "record player"),
+                           ("look out of the window", "window")]:
         at = new_game()
         say(at, sentence)
         assert shows_picture_of(at, word), sentence

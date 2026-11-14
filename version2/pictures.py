@@ -17,6 +17,7 @@ OBJECT_IMAGES = {
     "bed": Path(__file__).parent.parent / "assets" / "Bed.png",
     "desk": Path(__file__).parent.parent / "assets" / "Desk.png",
     "record_player": Path(__file__).parent.parent / "assets" / "RecordPlayer.png",
+    "window": Path(__file__).parent.parent / "assets" / "Window.png",
 }
 
 

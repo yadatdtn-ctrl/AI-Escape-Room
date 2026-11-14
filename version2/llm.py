@@ -141,8 +141,14 @@ def ask_gemini(system, user, temperature, json_mode):
 
 
 def short_problem(error):
-    """A short note about what went wrong (no long API messages)."""
-    return f"{type(error).__name__}: {str(error)[:120]}"
+    """A short note about what went wrong. The player should not see a long raw API message."""
+    text = str(error)
+    if "503" in text or "UNAVAILABLE" in text:
+        return "Gemini is busy (error 503)"
+    if "429" in text or "RESOURCE_EXHAUSTED" in text:
+        return "Gemini limit reached (error 429)"
+    note = f"{type(error).__name__}: {text}"
+    return note if len(note) <= 80 else note[:77] + "..."
 
 
 # ---------- job 1: the interpreter ----------

@@ -125,4 +125,21 @@ The narrator drop (see "The narrator can shorten the facts" above) was fixed in 
 
 Honest notes: this is one run per sentence, so it shows the three clues survived, not that the narrator never drops one. The guard makes a lost clue impossible in the text on screen, but a story that shows the plain config text instead (instead of the narrator's version) would look the same in a screenshot. The sidebar box "Show what the referee decided" was off, so these screenshots do not show which of the two texts was used.
 
+## New clues on bed, window, desk and record player (M11), real Gemini
+
+M11 gave four almost empty objects a clue phrase that Python protects (`must_include`) and a close-up picture. Played with real Gemini, one game, one run each, sidebar box "Show what the referee decided" off:
+
+| Sentence | Required clue phrase | Result | Screenshot |
+|---|---|---|---|
+| `look under the pillow` | "Come home before the rain" | **Not tested.** Gemini answered 503 ("high demand"). The game showed "The room flickers for a moment, and nothing happens. Please try again." No move was used (the next screenshot shows 1/30 after the window), and the room picture stayed. This confirms the 503 handling from M8, but it is not a result for the bed. | ![pillow](screenshots/v2_m11_pillow_503.png) |
+| `look out of the window` | "wooden pier" | The phrase is in the story; the window close-up is shown. Moves 1/30. | ![window](screenshots/v2_m11_window.png) |
+| `examine the desk` | "camera strap" | The phrase is in the story; the desk close-up is shown. Moves 2/30. | ![desk](screenshots/v2_m11_desk.png) |
+| `read the label on the record player` | "Side A: for you" | The phrase is in the story; the record player close-up is shown. Moves 3/30. | ![record player](screenshots/v2_m11_record_player.png) |
+| `look under the pillow` (second try, same game) | "Come home before the rain" | The phrase is in the story; the bed close-up is shown. Moves 4/30. | ![pillow](screenshots/v2_m11_pillow.png) |
+
+Honest notes:
+- The bed was checked on the second try, in the same game, after the 503. The clock shows 1:02 there because real time passed between the screenshots (the clock runs while nobody types); it is not a game error.
+- In the 503 screenshot the status panel shows only "Time left" and "Wrong codes"; the "Moves" card is missing in that one picture. In the next three screenshots all three cards are there. The cause is not known yet (it may be a picture taken while the page was redrawing); it is noted here so it can be checked.
+- The fallback line shows the raw API error text to the player. It is honest, but long and technical.
+
 _The report (`docs/report.md`) is written by Yada in M9, using this file as the evidence._

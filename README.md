@@ -156,8 +156,8 @@ In Version 2, the sidebar box **"Show what the referee decided"** shows, under e
 
 ```
 python tests/test_validators.py    # V2 rules, 29 tests
-python tests/test_llm.py           # V2 interpreter and narrator with fake answers, 22 tests
-python tests/test_version2.py      # V2 page, 27 tests
+python tests/test_llm.py           # V2 interpreter and narrator with fake answers, 25 tests
+python tests/test_version2.py      # V2 page, 29 tests
 python tests/test_version1.py      # V1 page, 8 tests
 ```
 

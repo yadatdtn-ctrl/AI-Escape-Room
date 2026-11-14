@@ -46,6 +46,7 @@ INTRO = (
 )
 
 HOW_TO_PLAY = f"""
+- Start by looking around.
 - Type what you want to do in normal words, for example:
   *look around*, *examine the window*, *what am I carrying?*
   You can look at things, pick things up, use one thing on another, and type a code.
