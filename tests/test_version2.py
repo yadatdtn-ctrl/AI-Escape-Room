@@ -156,33 +156,61 @@ def test_room_picture_changes_after_the_drawer_opens():
 
 
 def shows_picture_of(at, word):
-    """True if a picture whose alt text has this word is on the page."""
-    return any(word in str(node.proto) for node in at.get("image"))
+    """True if the close-up picture of this object is on the page (its alt text says so).
+    Only close-ups count: the room picture's alt text can also name the object the avatar stands by."""
+    return any("close-up of" in str(node.proto) and word in str(node.proto) for node in at.get("image"))
 
 
-def test_examining_the_corkboard_shows_its_picture_on_the_left():
-    """M10c: a clue object with a picture is shown big, and costs no extra move."""
+def room_alt(at):
+    """The alt text of the room picture (it names the object the avatar stands by)."""
+    return " ".join(str(n.proto) for n in at.get("image") if "attic room" in str(n.proto))
+
+
+def test_examining_the_corkboard_offers_its_picture_with_a_button():
+    """M14: the room with the avatar stays; the close-up opens with 'Look closer', and costs no extra move."""
     at = new_game()
-    assert not shows_picture_of(at, "corkboard")
+    assert not shows_picture_of(at, "corkboard") and "Look closer" not in labels(at)
     say(at, "look at the corkboard")
     end_cutscene(at)
+    assert not shows_picture_of(at, "corkboard") and "Look closer" in labels(at)
+    click(at, "Look closer")
     assert shows_picture_of(at, "corkboard")
     assert game(at)["moves"] == 1
 
 
-def test_examining_the_calendar_shows_its_picture_on_the_left():
+def test_the_avatar_is_seen_at_the_object_before_the_close_up_opens():
+    """Yada: the close-up hid the avatar, so its walk to the bed was never seen."""
     at = new_game()
-    say(at, "examine the calendar")
-    assert shows_picture_of(at, "calendar")
+    say(at, "look at the bed")
+    assert "you stand by the bed" in room_alt(at)
+    assert not shows_picture_of(at, "bed") and "Look closer" in labels(at)
 
 
-def test_bed_desk_record_player_and_window_show_their_pictures():
-    """M11: the four new close-ups."""
-    for sentence, word in [("examine the bed", "bed"), ("examine the desk", "desk"),
-                           ("examine the record player", "record player"),
+def test_the_look_closer_button_is_in_the_chat_under_the_story_not_under_the_picture():
+    """Yada: the player clicks it in the chat box after reading the story."""
+    at = new_game()
+    say(at, "look at the bed")
+    left_labels = [b.label for b in at.columns[0].button]
+    right_labels = [b.label for b in at.columns[1].button]
+    assert "Look closer" in right_labels and "Look closer" not in left_labels
+
+
+def test_the_look_closer_button_is_gone_while_the_close_up_is_open():
+    at = new_game()
+    say(at, "look at the bed")
+    click(at, "Look closer")
+    assert "Look closer" not in labels(at) and "Back to the room" in labels(at)
+
+
+def test_calendar_bed_desk_record_player_and_window_open_their_pictures_with_the_button():
+    """M11 close-ups, now behind 'Look closer'."""
+    for sentence, word in [("examine the calendar", "calendar"), ("examine the bed", "bed"),
+                           ("examine the desk", "desk"), ("examine the record player", "record player"),
                            ("look out of the window", "window")]:
         at = new_game()
         say(at, sentence)
+        assert not shows_picture_of(at, word) and "Look closer" in labels(at), sentence
+        click(at, "Look closer")
         assert shows_picture_of(at, word), sentence
 
 
@@ -193,26 +221,38 @@ def test_a_close_up_has_a_button_back_to_the_room_that_costs_nothing():
         at = new_game()
         assert "Back to the room" not in labels(at)
         say(at, sentence)
+        end_cutscene(at)
+        assert "Back to the room" not in labels(at), sentence
+        click(at, "Look closer")
         assert shows_picture_of(at, word) and "Back to the room" in labels(at), sentence
         moves = game(at)["moves"]
         click(at, "Back to the room")
         assert not shows_picture_of(at, word) and "Back to the room" not in labels(at), sentence
         assert game(at)["moves"] == moves, "going back is free"
+        assert "Look closer" in labels(at), "the close-up can be opened again until the next message"
 
 
-def test_the_room_comes_back_with_the_next_action():
+def test_the_look_closer_button_goes_away_with_the_next_action():
     at = new_game()
     say(at, "look at the corkboard")
+    end_cutscene(at)
+    assert "Look closer" in labels(at)
     say(at, "take the key")  # not the corkboard any more
-    assert not shows_picture_of(at, "corkboard")
+    assert "Look closer" not in labels(at) and not shows_picture_of(at, "corkboard")
 
 
-def test_a_refused_examine_shows_no_object_picture():
+def test_an_object_without_a_picture_has_no_look_closer_button():
+    at = new_game()
+    say(at, "examine the raincoat")  # no close-up picture for the raincoat
+    assert "Look closer" not in labels(at)
+
+
+def test_a_refused_examine_offers_no_object_picture():
     at = new_game()
     say(at, "examine the moon")  # not in the room: refused, no picture
-    assert not shows_picture_of(at, "corkboard")
+    assert "Look closer" not in labels(at) and not shows_picture_of(at, "corkboard")
     say(at, "type 1234")  # the keypad does not answer yet
-    assert not shows_picture_of(at, "corkboard")
+    assert "Look closer" not in labels(at) and not shows_picture_of(at, "corkboard")
 
 
 def test_every_object_picture_in_the_list_is_a_real_object_with_a_file():
@@ -389,6 +429,7 @@ def test_a_played_memory_unlocks_its_card_and_can_be_seen_again_for_free():
     assert any("The Pier" in c.value for c in at.caption), "the title is a caption on the card"
     moves = game(at)["moves"]
     at.button(key="memory_1").click().run()
+    assert len(at.exception) == 0, f"the memory window opens without an error: {at.exception}"
     assert game(at)["moves"] == moves, "opening a memory costs no move"
 
 
@@ -525,6 +566,49 @@ def test_play_again_resets_everything():
 
 
 # ---------- runner ----------
+# ---------- the pixel avatar (M13) ----------
+def avatar(at):
+    return at.session_state["avatar"]
+
+
+def test_avatar_starts_in_the_middle():
+    at = new_game()
+    assert avatar(at) == {"at": "start", "facing": "right"}
+
+
+def test_avatar_walks_to_an_examined_object():
+    at = new_game()
+    say(at, "examine the raincoat")
+    assert avatar(at) == {"at": "raincoat", "facing": "left"}  # the raincoat is left of the middle
+
+
+def test_refused_action_does_not_move_the_avatar():
+    at = new_game()
+    say(at, "examine the raincoat")
+    say(at, "use the key on the door")  # no key yet: the referee refuses
+    assert avatar(at)["at"] == "raincoat"
+
+
+def test_right_code_at_the_door_moves_the_avatar_there():
+    at = new_game()
+    play_until_record_played(at)
+    say(at, "type 0211")
+    assert avatar(at)["at"] == "door"
+
+
+def test_restart_puts_the_avatar_back():
+    at = new_game()
+    say(at, "examine the raincoat")
+    click(at, "Restart")
+    assert avatar(at) == {"at": "start", "facing": "right"}
+
+
+def test_room_still_shows_without_a_sprite_file():
+    at = new_game()
+    say(at, "look around")
+    assert len(at.exception) == 0 and len(at.get("image")) >= 1
+
+
 if __name__ == "__main__":
     tests = [(name, fn) for name, fn in sorted(globals().items())
              if name.startswith("test_") and callable(fn)]

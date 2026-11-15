@@ -7,9 +7,11 @@ import time
 from pathlib import Path
 
 import streamlit as st
+from PIL import Image
 
 from game_state import count_move, load_config, new_state
 from llm import interpret, narrate, use_mock
+from avatar import facing, goal, place_avatar
 from pictures import ITEM_IMAGES, OBJECT_IMAGES, locked_card, pick, trimmed, zoom
 from texts import BAD_REASONS, CUTSCENES, ENDINGS, FINAL_CHOICE_TEXT, OPENING_TEXT, TRY_AGAIN_TEXT
 from validators import check_limits, find_id, handle_action, time_is_up
@@ -31,6 +33,7 @@ CUTSCENE_IMAGES = {
 }
 ROOM_OPEN_IMAGE = ASSETS / "Room_open.jpeg"  # the same room with the drawer open (by Yada)
 DIARY_IMAGE = ASSETS / "Diary.jpeg"  # the diary page (by Yada)
+SPRITE_IMAGE = ASSETS / "Sprite_you.png"  # the pixel avatar, facing right (by Yada); no file = no avatar
 AVATAR_YOU = ASSETS / "Avatar_you.png"  # chat icon for the player (by Yada)
 AVATAR_NARRATOR = ASSETS / "Avatar_narrator.png"  # chat icon for the narrator (by Yada)
 ITEM_ICONS = {"brass_key": ":material/key:", "vinyl_record": ":material/album:"}  # until Yada's pictures
@@ -74,6 +77,15 @@ def room_picture(drawer_open=False):
 
 
 @st.cache_data
+def room_with_avatar(drawer_open, spot, side):
+    """The room picture with the avatar standing on 'spot' (or without it, if the sprite file is missing)."""
+    room = room_picture(drawer_open)
+    if not SPRITE_IMAGE.exists():
+        return room
+    return place_avatar(room, Image.open(SPRITE_IMAGE), spot, side)
+
+
+@st.cache_data
 def avatars():
     """Yada's pixel icons, zoomed in so they are readable when small; Material icons if missing."""
     return {
@@ -93,7 +105,9 @@ def reset_game():
     st.session_state.reason = None     # why the player lost: "time", "moves" or "codes"
     st.session_state.cutscene = None   # the cutscene playing now: {"number": 1, "ends_at": time}
     st.session_state.viewing = None    # id of the object whose close-up picture is shown, or None
+    st.session_state.close_up = None   # id of the object whose close-up can be opened now ("Look closer"), or None
     st.session_state.stats = None      # the numbers of the finished run (saved once, at the end)
+    st.session_state.avatar = {"at": "start", "facing": "right"}  # where the pixel avatar stands
 
 
 def save_stats():
@@ -182,7 +196,7 @@ def diary_page():
 def memory_page(number):
     """A memory that was found before, shown again. It costs no move and no LLM call."""
     info = CUTSCENES[number]
-    st.image(str(CUTSCENE_IMAGES[number]), width=CARD_PICTURE, alt=info["title"])
+    st.image(str(CUTSCENE_IMAGES[number]), width="stretch", alt=info["title"])
     st.write(f"**{info['title']}**: {info['caption']}")
 
 
@@ -269,18 +283,22 @@ with left:
         st.write(f"**{info['title']}**: {info['caption']}")
         cutscene_watch()
     elif st.session_state.viewing:
-        # A close-up of the object the player just examined (until the next message)
+        # The close-up the player opened with "Look closer" (until the next message)
         looking_at = st.session_state.viewing
         st.image(str(OBJECT_IMAGES[looking_at]), width="stretch",
                  alt=f"A close-up of the {CONFIG['objects'][looking_at]['name']}")
         if st.button("Back to the room", icon=":material/arrow_back:"):  # free: no move, no LLM
             st.session_state.viewing = None
             st.rerun()
-    elif game["drawer_open"]:
-        st.image(room_picture(drawer_open=True), width="stretch",
-                 alt="Sky's attic room at night, the drawer is open")
     else:
-        st.image(room_picture(), width="stretch", alt="Sky's attic room at night")
+        # The room, with the pixel avatar in front of the object of the last allowed action
+        me = st.session_state.avatar
+        alt = "Sky's attic room at night"
+        if game["drawer_open"]:
+            alt += ", the drawer is open"
+        if me["at"] != "start":
+            alt += f", you stand by the {CONFIG['objects'][me['at']]['name']}"
+        st.image(room_with_avatar(game["drawer_open"], me["at"], me["facing"]), width="stretch", alt=alt)
 
     # Status panel (the HUD): each number has a thin bar or lock icons under it.
     # Three small blocks in a row; on a narrow screen (a phone) they wrap instead of stacking one by one.
@@ -356,6 +374,13 @@ with right:
                     st.caption("(fallback: " + message["note"] + ")")
                 if show_debug and message.get("debug"):
                     st.caption(message["debug"])
+        # After the newest story: a button to open the close-up of the object (free: no move, no LLM).
+        # It comes after the typed story, so the player reads first. The room with the avatar stays
+        # on the left until the player clicks.
+        if st.session_state.close_up and not st.session_state.viewing and not scene:
+            if st.button("Look closer", icon=":material/zoom_in:"):
+                st.session_state.viewing = st.session_state.close_up
+                st.rerun()
     # No typing while a memory is playing, or after the door is open
     no_typing = scene or game["door_open"]
     player_text = None if no_typing else st.chat_input("Type what you do...")
@@ -393,12 +418,19 @@ if player_text:
         st.rerun()
     count_move(game)
     outcome = handle_action(action, game, CONFIG)
-    # Close-up picture: only after a successful examine of an object that has a picture file
+    # The avatar walks only after Python ALLOWED the action (a refused action changes nothing)
+    spot = goal(action, outcome["allowed"], CONFIG["objects"])
+    if spot:
+        me = st.session_state.avatar
+        me["facing"] = facing(me["at"], spot, me["facing"])
+        me["at"] = spot
+    # Close-up picture: offered only after a successful examine of an object that has a picture file
     st.session_state.viewing = None
+    st.session_state.close_up = None
     if outcome["allowed"] and action.get("action") == "examine":
         seen_id = find_id(action.get("target"), CONFIG["objects"])
         if seen_id in OBJECT_IMAGES and OBJECT_IMAGES[seen_id].exists():
-            st.session_state.viewing = seen_id
+            st.session_state.close_up = seen_id
     story, problem_2 = narrate(outcome["facts"], CONFIG)  # facts only, not the player's words
     # Waiting for Gemini is not the player's fault: give that time back
     game["deadline"] += time.time() - waiting_since
