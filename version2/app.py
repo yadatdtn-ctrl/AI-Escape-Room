@@ -347,19 +347,6 @@ with left:
             if st.button("Open the diary page", icon=":material/menu_book:"):
                 diary_page()
 
-    if game["door_open"] and not scene:
-        # The door is open: the player decides how the story ends
-        st.write(FINAL_CHOICE_TEXT)
-        remember_col, forget_col = st.columns(2)
-        if remember_col.button("Remember", type="primary", width="stretch"):
-            save_stats()
-            st.session_state.ending = "remember"
-            st.rerun()
-        if forget_col.button("Forget", width="stretch"):
-            save_stats()
-            st.session_state.ending = "forget"
-            st.rerun()
-
 with right:
     chat_box = st.container(height=CHAT_HEIGHT)
     with chat_box:
@@ -390,6 +377,19 @@ with right:
             if st.button("Look closer", icon=":material/zoom_in:"):
                 st.session_state.viewing = st.session_state.close_up
                 st.rerun()
+        if game["door_open"] and not scene:
+            # The door is open: the player decides how the story ends, in the chat under the last story
+            with st.chat_message("assistant", avatar=avatars()["assistant"]):
+                st.write(FINAL_CHOICE_TEXT)
+                remember_col, forget_col = st.columns(2)
+                if remember_col.button("Remember", type="primary", width="stretch"):
+                    save_stats()
+                    st.session_state.ending = "remember"
+                    st.rerun()
+                if forget_col.button("Forget", width="stretch"):
+                    save_stats()
+                    st.session_state.ending = "forget"
+                    st.rerun()
     # No typing while a memory is playing, or after the door is open
     no_typing = scene or game["door_open"]
     player_text = None if no_typing else st.chat_input("Type what you do...")
