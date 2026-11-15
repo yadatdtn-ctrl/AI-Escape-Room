@@ -399,7 +399,9 @@ with right:
     # Three columns: they always stay in one row, each takes a third of the width.
     for column, (number, info) in zip(st.columns(3), CUTSCENES.items()):
         with column, st.container(border=True):
-            if number in game["cutscenes"]:
+            # The card unlocks when the big picture shows, not during the short walk before it
+            waiting = scene and scene["number"] == number and time.time() < scene["shows_at"]
+            if number in game["cutscenes"] and not waiting:
                 st.image(str(CUTSCENE_IMAGES[number]), width="stretch", alt=info["title"])
                 st.caption(info["title"])
                 # Icon only, so it fits any card width; the tooltip says what it does

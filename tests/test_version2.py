@@ -560,6 +560,17 @@ def test_the_time_card_says_paused_in_its_label_so_the_bars_stay_in_line():
     assert len(card) == 1 and card[0].proto.delta == ""
 
 
+def test_the_memory_card_unlocks_when_the_picture_shows_not_during_the_walk():
+    at = new_game()
+    say(at, "read the diary")
+    assert locked_cards(at) == 3, "still waiting: no spoiler in the small card"
+    scene = at.session_state["cutscene"]
+    scene["shows_at"] = time.time() - 0.1
+    scene["ends_at"] = time.time() + 8
+    at.run()
+    assert locked_cards(at) == 2, "the picture shows now: the card unlocks"
+
+
 def test_full_escape_then_remember():
     at = new_game()
     play_until_record_played(at)
