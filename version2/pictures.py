@@ -68,3 +68,34 @@ def trimmed(path, darkness=35):
     mask = picture.convert("L").point(lambda value: 255 if value > darkness else 0)
     box = mask.getbbox()  # the smallest box around everything that is not dark
     return picture.crop(box) if box else picture
+
+
+def letterbox(picture, ratio, color=(14, 18, 32)):
+    """Give the picture the shape 'ratio' (width / height) by adding bars in the page colour.
+    Nothing of the picture is cut off. Used so a memory picture is as tall as the room picture."""
+    picture = picture.convert("RGB")
+    width, height = picture.size
+    if abs(width / height - ratio) < 0.01:
+        return picture  # already the right shape
+    if width / height > ratio:  # too wide: bars above and below
+        new_size = (width, round(width / ratio))
+    else:  # too tall: bars left and right
+        new_size = (round(height * ratio), height)
+    canvas = Image.new("RGB", new_size, color)
+    canvas.paste(picture, ((new_size[0] - width) // 2, (new_size[1] - height) // 2))
+    return canvas
+
+
+def fade_css(seconds, fade=1.5):
+    """CSS for the memory picture: fade in, stay, fade out. It lasts as long as the cutscene."""
+    start = round(fade / seconds * 100, 1)  # where the fade-in ends, in percent of the time
+    end = round(100 - start, 1)             # where the fade-out begins
+    return f"""<style>
+.st-key-cutscene img {{ animation: scene {seconds}s linear forwards; }}
+@keyframes scene {{
+  0% {{ opacity: 0; }}
+  {start}% {{ opacity: 1; }}
+  {end}% {{ opacity: 1; }}
+  100% {{ opacity: 0; }}
+}}
+</style>"""

@@ -12,7 +12,7 @@ from PIL import Image
 from game_state import count_move, load_config, new_state
 from llm import interpret, narrate, use_mock
 from avatar import facing, goal, place_avatar
-from pictures import ITEM_IMAGES, OBJECT_IMAGES, locked_card, pick, trimmed, zoom
+from pictures import ITEM_IMAGES, OBJECT_IMAGES, fade_css, letterbox, locked_card, pick, trimmed, zoom
 from texts import BAD_REASONS, CUTSCENES, ENDINGS, FINAL_CHOICE_TEXT, OPENING_TEXT, TRY_AGAIN_TEXT
 from validators import check_limits, find_id, handle_action, time_is_up
 
@@ -39,12 +39,6 @@ AVATAR_NARRATOR = ASSETS / "Avatar_narrator.png"  # chat icon for the narrator (
 ITEM_ICONS = {"brass_key": ":material/key:", "vinyl_record": ":material/album:"}  # until Yada's pictures
 HUD_WIDTH = 150   # width in pixels of one block of the status panel (time, moves, wrong codes)
 CHAT_HEIGHT = 400  # height in pixels of the chat box
-
-# Cutscene fade-in (from the design): CSS only for the container with key="cutscene"
-FADE_IN_CSS = """<style>
-.st-key-cutscene img { animation: fadein 1.5s ease-in; }
-@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
-</style>"""
 
 INTRO = (
     "You will wake up in a room that is not yours. "
@@ -77,6 +71,13 @@ def room_picture(drawer_open=False):
 
 
 @st.cache_data
+def cutscene_picture(number):
+    """A memory picture with bars added, so it is exactly as tall as the room picture (nothing below it jumps)."""
+    room = room_picture()
+    return letterbox(Image.open(CUTSCENE_IMAGES[number]), room.width / room.height)
+
+
+@st.cache_data
 def room_with_avatar(drawer_open, spot, side):
     """The room picture with the avatar standing on 'spot' (or without it, if the sprite file is missing)."""
     room = room_picture(drawer_open)
@@ -103,7 +104,7 @@ def reset_game():
     st.session_state.messages = [{"role": "assistant", "content": OPENING_TEXT}]
     st.session_state.ending = None     # None while playing; then "remember", "forget" or "bad"
     st.session_state.reason = None     # why the player lost: "time", "moves" or "codes"
-    st.session_state.cutscene = None   # the cutscene playing now: {"number": 1, "ends_at": time}
+    st.session_state.cutscene = None   # the memory now: {"number": 1, "shows_at": time, "ends_at": time}
     st.session_state.viewing = None    # id of the object whose close-up picture is shown, or None
     st.session_state.close_up = None   # id of the object whose close-up can be opened now ("Look closer"), or None
     st.session_state.stats = None      # the numbers of the finished run (saved once, at the end)
@@ -140,6 +141,7 @@ def format_time(seconds):
 
 TYPE_DELAY = 0.03        # seconds between two words of the typewriter story
 TYPE_MAX_SECONDS = 1.5   # a long story is typed faster, so it never takes longer than this
+WALK_SECONDS = 2  # before a memory starts, the room with the avatar stays this long on screen
 
 
 def typewriter_on():
@@ -167,10 +169,13 @@ def lock_icons(wrong, allowed):
 
 
 def start_cutscene(number):
-    """Play a cutscene and stop the clock: the player gets the seconds back."""
+    """Play a memory and stop the clock: the player gets all the seconds back.
+    First the room stays on screen for WALK_SECONDS, so the player sees the avatar at the object;
+    then the memory picture is shown for the cutscene time."""
     seconds = LIMITS["cutscene_seconds"]
-    st.session_state.cutscene = {"number": number, "ends_at": time.time() + seconds}
-    st.session_state.game["deadline"] += seconds
+    shows_at = time.time() + WALK_SECONDS
+    st.session_state.cutscene = {"number": number, "shows_at": shows_at, "ends_at": shows_at + seconds}
+    st.session_state.game["deadline"] += WALK_SECONDS + seconds
 
 
 @st.fragment(run_every=1)
@@ -202,10 +207,14 @@ def memory_page(number):
 
 @st.fragment(run_every=0.5)
 def cutscene_watch():
-    """Draws nothing. Checks twice a second if the cutscene is over."""
-    if time.time() >= st.session_state.cutscene["ends_at"]:
+    """Draws nothing. Checks twice a second if the memory picture should appear, or if the memory is over."""
+    scene = st.session_state.cutscene
+    if time.time() >= scene["ends_at"]:
         st.session_state.cutscene = None
         st.rerun()  # redraw the whole page: back to the room and the live clock
+    elif time.time() >= scene["shows_at"] and not scene.get("shown"):
+        scene["shown"] = True  # only once
+        st.rerun()  # redraw the whole page: now the memory picture
 
 
 # session_state = memory that Streamlit keeps while the page is open
@@ -273,16 +282,15 @@ if st.session_state.ending:
 left, right = st.columns(2)
 
 with left:
-    scene = st.session_state.cutscene
-    if scene:
-        # A memory is playing: its picture fades in, and the clock is frozen
+    scene = st.session_state.cutscene  # a memory is on its way or playing: the clock is frozen
+    if scene and time.time() >= scene["shows_at"]:
+        # The memory picture fades in and out
         info = CUTSCENES[scene["number"]]
-        st.html(FADE_IN_CSS)
+        st.html(fade_css(LIMITS["cutscene_seconds"]))
         with st.container(key="cutscene"):
-            st.image(str(CUTSCENE_IMAGES[scene["number"]]), width="stretch", alt=info["title"])
+            st.image(cutscene_picture(scene["number"]), width="stretch", alt=info["title"])
         st.write(f"**{info['title']}**: {info['caption']}")
-        cutscene_watch()
-    elif st.session_state.viewing:
+    elif st.session_state.viewing and not scene:
         # The close-up the player opened with "Look closer" (until the next message)
         looking_at = st.session_state.viewing
         st.image(str(OBJECT_IMAGES[looking_at]), width="stretch",
@@ -299,6 +307,8 @@ with left:
         if me["at"] != "start":
             alt += f", you stand by the {CONFIG['objects'][me['at']]['name']}"
         st.image(room_with_avatar(game["drawer_open"], me["at"], me["facing"]), width="stretch", alt=alt)
+    if scene:
+        cutscene_watch()
 
     # Status panel (the HUD): each number has a thin bar or lock icons under it.
     # Three small blocks in a row; on a narrow screen (a phone) they wrap instead of stacking one by one.
@@ -309,8 +319,7 @@ with left:
         with time_col:
             if scene:
                 frozen = game["deadline"] - scene["ends_at"]  # time left when the memory ends
-                st.metric("Time left", format_time(frozen), delta="paused", delta_color="off",
-                          delta_arrow="off")
+                st.metric("Time (paused)", format_time(frozen))  # in the label: a badge made the card taller
                 st.progress(bar_value(frozen, LIMITS["time_seconds"]))
             elif game["door_open"]:
                 st.metric("Time left", "stopped")

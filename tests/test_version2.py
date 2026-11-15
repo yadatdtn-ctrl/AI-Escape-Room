@@ -372,7 +372,7 @@ def test_typing_time_is_not_given_back_twice_during_a_memory():
         say(at, "read the diary")  # a memory starts
         return game(at)["deadline"] - before
 
-    assert with_typewriter(play) < 8 + 0.5
+    assert with_typewriter(play) < 2 + 8 + 0.5  # 2 s of walking to the object, then the 8 s memory
 
 
 # ---------- M12 task 2: game HUD ----------
@@ -433,6 +433,27 @@ def test_a_played_memory_unlocks_its_card_and_can_be_seen_again_for_free():
     assert game(at)["moves"] == moves, "opening a memory costs no move"
 
 
+def test_letterbox_gives_the_room_shape_without_cutting_the_picture():
+    """M14: a memory picture is shorter than the room picture, so everything below it jumped."""
+    from PIL import Image
+    from pictures import letterbox
+    wide = letterbox(Image.new("RGB", (200, 100), (255, 0, 0)), 1.6)
+    assert wide.size == (200, 125), wide.size                   # dark bars above and below
+    assert wide.getpixel((100, 62)) == (255, 0, 0)               # the picture is still in the middle
+    assert wide.getpixel((100, 2)) == (14, 18, 32)               # the bar has the page colour
+    tall = letterbox(Image.new("RGB", (100, 100), (255, 0, 0)), 1.6)
+    assert tall.size == (160, 100), tall.size                    # a picture that is too tall gets side bars
+    assert letterbox(Image.new("RGB", (160, 100)), 1.6).size == (160, 100)  # right shape already: unchanged
+
+
+def test_cutscene_css_fades_in_and_fades_out_over_the_cutscene_time():
+    from pictures import fade_css
+    css = fade_css(8)
+    assert "8s" in css and "opacity: 0" in css and "forwards" in css
+    assert css.count("opacity: 1") >= 2, "fully visible in the middle"
+    assert "st-key-cutscene" in css
+
+
 def test_locked_card_is_a_small_dark_placeholder_with_no_memory_in_it():
     """Yada: not a blurred preview, only dark grey with a ? so nothing of the memory shows."""
     from pictures import locked_card
@@ -482,6 +503,61 @@ def test_diary_starts_cutscene_1_and_hides_the_chat_input():
     say(at, "read the diary")
     assert at.session_state["cutscene"]["number"] == 1
     assert len(at.chat_input) == 0
+
+
+def test_a_memory_waits_two_seconds_so_the_avatar_is_seen_at_the_diary():
+    """Yada: 'read the diary': the memory started at once, before the avatar was at the diary."""
+    at = new_game()
+    say(at, "read the diary")
+    scene = at.session_state["cutscene"]
+    assert scene["shows_at"] > time.time() and scene["ends_at"] - scene["shows_at"] == 8
+    assert "you stand by the diary" in room_alt(at), "the room with the avatar is still on the left"
+    assert not shows_picture_of(at, "The Pier") and len(at.chat_input) == 0
+    scene["shows_at"] = time.time() - 0.1  # two seconds later: the memory starts
+    scene["ends_at"] = time.time() + 8
+    at.run()
+    assert any("The Pier" in str(n.proto) for n in at.get("image")), "now the memory picture is shown"
+    assert "attic room" not in room_alt(at)
+
+
+def test_before_every_memory_the_avatar_stands_at_the_object_and_the_room_is_shown():
+    """Yada: check all three memories (diary, drawer with the key, record on the record player)."""
+    at = new_game()
+
+    def check(spot, name):
+        assert at.session_state["cutscene"] is not None, name
+        assert avatar(at)["at"] == spot, (name, avatar(at))
+        assert f"you stand by the {name}" in room_alt(at), name
+        big = [str(n.proto) for n in at.columns[0].get("image")]  # the left side (the small cards are on the right)
+        assert big and not any(title in text for text in big
+                               for title in ("The Pier", "The Rooftop", "That Night")), "no memory picture yet"
+
+    say(at, "read the diary")
+    check("diary", "diary")
+    end_cutscene(at)
+    say(at, "examine the raincoat")
+    say(at, "take the key")
+    say(at, "open the drawer with the key")
+    check("drawer", "drawer")
+    end_cutscene(at)
+    say(at, "take the record")
+    say(at, "play the record")
+    check("record_player", "record player")
+
+
+def test_the_clock_is_paused_for_the_walk_and_the_memory_together():
+    at = new_game()
+    before = game(at)["deadline"]
+    say(at, "read the diary")
+    assert 10 <= game(at)["deadline"] - before < 10.5
+
+
+def test_the_time_card_says_paused_in_its_label_so_the_bars_stay_in_line():
+    """The old 'paused' badge made the Time card taller than the other two."""
+    at = new_game()
+    say(at, "read the diary")
+    card = [m for m in at.metric if m.label == "Time (paused)"]
+    assert len(card) == 1 and card[0].proto.delta == ""
 
 
 def test_full_escape_then_remember():
