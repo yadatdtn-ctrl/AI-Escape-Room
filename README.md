@@ -155,9 +155,10 @@ In Version 2, the sidebar box **"Show what the referee decided"** shows, under e
 ### Tests (no API needed)
 
 ```
-python tests/test_validators.py    # V2 rules, 30 tests
+python tests/test_validators.py    # V2 rules, 31 tests
 python tests/test_llm.py           # V2 interpreter and narrator with fake answers, 25 tests
-python tests/test_version2.py      # V2 page, 65 tests
+python tests/test_version2.py      # V2 page, 81 tests
+python tests/test_names.py         # V2 the player's name (cleaning and fixed texts), 10 tests
 python tests/test_avatar.py        # V2 pixel avatar rules and drawing, 8 tests
 python tests/test_version1.py      # V1 page, 8 tests
 ```
@@ -167,7 +168,7 @@ python tests/test_version1.py      # V1 page, 8 tests
 ```
 version1/           the LLM-decides game (app, prompts, llm, tags, rules)
 version2/           the Python-decides game (app, game_config.json, game_state, validators, llm)
-assets/             the 7 pictures (generated with Gemini)
+assets/             pictures (generated with Gemini), the pixel avatar and the background music
 tests/              tests without the API
 docs/               design, architecture diagrams, test cases, screenshots
 scripts/            small helpers to test the Gemini connection
@@ -177,3 +178,5 @@ scripts/            small helpers to test the Gemini connection
 ## Credits
 
 Pictures generated with Gemini. All story, characters and places are original.
+
+Music: ["JRPG Piano"](https://opengameart.org/content/jrpg-piano) by Joth, licence CC0 (`assets/Music.mp3`).

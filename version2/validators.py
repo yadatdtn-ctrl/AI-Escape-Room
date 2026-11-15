@@ -128,7 +128,9 @@ def do_use(action, state, config):
         return refuse(state, config, "use", "ALREADY_DONE", obj["name"])
     state["record_played"] = True
     cutscene = play_cutscene(state, obj["when_used"]["cutscene"])
-    return result(state, config, "use", True, None, obj["name"], obj["when_used"]["text"], cutscene)
+    used = obj["when_used"]
+    return result(state, config, "use", True, None, obj["name"], used["text"], cutscene,
+                  used.get("must_include", []))  # Sky's words: the story must keep them
 
 
 def do_enter_code(action, state, config):

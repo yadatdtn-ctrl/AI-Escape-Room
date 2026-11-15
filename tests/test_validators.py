@@ -110,6 +110,19 @@ def test_record_on_player_starts_cutscene_3():
     assert again["reason"] == "ALREADY_DONE"
 
 
+SKY_WORDS = ["Hey, it's me.", "If you can hear this, you came back.", "I'm not angry.", "Please don't forget me."]
+
+
+def test_the_record_plays_sky_words_that_the_story_must_keep():
+    """Yada: the player should read what Sky said, not only that a voice fills the room."""
+    state = game_with_record()
+    facts = act(state, action="use", item="vinyl_record", target="record_player")["facts"]
+    for words in SKY_WORDS:
+        assert words in facts["text"], words
+        assert words in facts["must_include"], words
+    assert DOOR_CODE not in facts["text"] and "02.11" not in facts["text"]
+
+
 def test_play_record_not_owned():
     state = new_state(CONFIG)
     result = act(state, action="use", item="vinyl_record", target="record_player")

@@ -12,7 +12,9 @@ from PIL import Image
 from game_state import count_move, load_config, new_state
 from llm import interpret, narrate, use_mock
 from avatar import facing, goal, place_avatar
+from names import address, clean_name
 from pictures import ITEM_IMAGES, OBJECT_IMAGES, fade_css, letterbox, locked_card, pick, trimmed, zoom
+from sounds import MUSIC_FILE, MUSIC_VOLUME, hide_player_css, quiet_script
 from texts import BAD_REASONS, CUTSCENES, ENDINGS, FINAL_CHOICE_TEXT, OPENING_TEXT, TRY_AGAIN_TEXT
 from validators import check_limits, find_id, handle_action, time_is_up
 
@@ -47,14 +49,10 @@ INTRO = (
 )
 
 HOW_TO_PLAY = f"""
-- Start by looking around.
-- Type what you want to do in normal words, for example:
-  *look around*, *examine the window*, *what am I carrying?*
-  You can look at things, pick things up, use one thing on another, and type a code.
+- Start by looking around. Then type what you want to do in normal words, for example: *examine the window*.
 - Send **one action per message**: do one thing, then the next.
-- You have **{LIMITS["time_seconds"] // 60} minutes** and **{LIMITS["max_moves"]} moves**.
-  Every message you send is 1 move. The clock starts when you press Start.
-- The door allows only **{LIMITS["max_wrong_codes"]} wrong codes**.
+- You have **{LIMITS["time_seconds"] // 60} minutes** and **{LIMITS["max_moves"]} moves** (every message is 1 move).
+  The door allows only **{LIMITS["max_wrong_codes"]} wrong codes**.
 """
 
 # The sidebar starts closed: it is wide, and the game needs the room (Restart is still inside it).
@@ -109,6 +107,8 @@ def reset_game():
     st.session_state.close_up = None   # id of the object whose close-up can be opened now ("Look closer"), or None
     st.session_state.stats = None      # the numbers of the finished run (saved once, at the end)
     st.session_state.avatar = {"at": "start", "facing": "right"}  # where the pixel avatar stands
+    st.session_state.player_name = ""   # the cleaned name the player typed on the start screen ("" = none)
+    st.session_state["name_input"] = ""  # the name field itself is empty again
 
 
 def save_stats():
@@ -233,22 +233,36 @@ with st.sidebar:
     show_debug = st.checkbox("Show what the referee decided")
     if use_mock():
         st.caption("Mock mode: fake answers, no API calls.")
+    # Quiet piano music while the player is in the game. The grey browser player is hidden;
+    # the Music switch is the control (off = the player is not on the page, so it stops).
+    if st.session_state.screen == "game" and MUSIC_FILE.exists():
+        if st.toggle("Music", value=True, key="music_on"):
+            st.audio(str(MUSIC_FILE), format="audio/mp3", loop=True, autoplay=True)
+            st.html(hide_player_css() + quiet_script(MUSIC_VOLUME), unsafe_allow_javascript=True)
 
 # ---------- Start screen ----------
 if st.session_state.screen == "start":
-    # Same shape as the game screen: picture on the left, words on the right
-    picture_side, text_side = st.columns(2, vertical_alignment="center")
+    # Same shape as the game screen: picture on the left, words on the right.
+    # Both start at the top, so the Start button stays high however long the text is.
+    picture_side, text_side = st.columns(2, vertical_alignment="top")
     with picture_side:
         st.image(room_picture(), width="stretch", alt="Sky's attic room at night")
         # The button sits under the picture, so it is always on screen, even when the
         # instructions on the right are long.
         if st.button("Start", type="primary", icon=":material/play_arrow:", width="stretch"):
+            st.session_state.player_name = clean_name(st.session_state.name_input)  # cleaned: it is untrusted text
             st.session_state.screen = "game"
             game["deadline"] = time.time() + LIMITS["time_seconds"]  # the clock starts NOW
             st.rerun()
     with text_side:
         st.title("Sky")
         st.write(INTRO)
+        st.text_input("Your name", max_chars=12, key="name_input", placeholder="optional")  # kept on the right so Start stays high
+        # Pressing Enter keeps the name; say so, so the player knows it worked
+        if clean_name(st.session_state.name_input):
+            st.caption(f"Your name is now {clean_name(st.session_state.name_input)}.")
+        elif st.session_state.name_input.strip():
+            st.caption("Please use letters only.")
         st.subheader("How to play")
         st.markdown(HOW_TO_PLAY)
     st.stop()
@@ -265,7 +279,7 @@ if st.session_state.ending:
         st.title(ending["title"])
         if st.session_state.ending == "bad":
             st.caption(BAD_REASONS[st.session_state.reason])
-        st.write(ending["text"])
+        st.write(address(ending["text"], st.session_state.player_name))
         run = st.session_state.stats
         if run:  # the run in numbers, like the end screen of a game
             with st.container(horizontal=True):
@@ -380,7 +394,7 @@ with right:
         if game["door_open"] and not scene:
             # The door is open: the player decides how the story ends, in the chat under the last story
             with st.chat_message("assistant", avatar=avatars()["assistant"]):
-                st.write(FINAL_CHOICE_TEXT)
+                st.write(address(FINAL_CHOICE_TEXT, st.session_state.player_name))
                 remember_col, forget_col = st.columns(2)
                 if remember_col.button("Remember", type="primary", width="stretch"):
                     save_stats()

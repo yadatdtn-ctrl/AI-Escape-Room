@@ -104,7 +104,13 @@
       "accepts": "vinyl_record",
       "when_used": {
         "cutscene": 3,
-        "text": "The needle touches the record. Sky's voice fills the room."
+        "text": "The needle touches the record. Sky's voice fills the room: \"Hey, it's me. If you can hear this, you came back. I'm not angry. Please don't forget me.\"",
+        "must_include": [
+          "Hey, it's me.",
+          "If you can hear this, you came back.",
+          "I'm not angry.",
+          "Please don't forget me."
+        ]
       }
     },
     "door": {

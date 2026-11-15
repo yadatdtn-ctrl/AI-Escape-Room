@@ -592,6 +592,158 @@ def test_the_final_choice_is_in_the_chat_not_under_the_picture():
     assert not any(FINAL_CHOICE_TEXT in str(m.value) for m in at.columns[0].markdown)
 
 
+# ---------- M17: the player's name ----------
+def start_with_name(name):
+    """Open the app, type a name on the start screen and press Start."""
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    at.text_input[0].set_value(name).run()
+    click(at, "Start")
+    return at
+
+
+def all_text(at):
+    return " ".join(str(m.value) for m in at.markdown)
+
+
+def test_start_screen_has_a_name_field_and_the_game_screen_does_not():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert len(at.text_input) == 1 and at.text_input[0].label == "Your name"
+    assert at.text_input[0].max_chars == 12
+    click(at, "Start")
+    assert len(at.text_input) == 0
+
+
+def test_the_typed_name_is_cleaned_before_it_is_kept():
+    at = start_with_name("mika the great")
+    assert at.session_state["player_name"] == "Mika"
+    at = start_with_name("")
+    assert at.session_state["player_name"] == ""
+
+
+def test_the_name_is_in_the_final_choice_and_in_the_ending():
+    at = start_with_name("mika")
+    play_until_record_played(at)
+    say(at, "type 0211")
+    assert "Mika, the door opens onto white light" in all_text(at)
+    click(at, "Remember")
+    assert "Mika, you wake up and everything comes back at once" in all_text(at)
+
+
+def test_without_a_name_the_texts_stay_as_they_were():
+    at = new_game()
+    play_until_record_played(at)
+    say(at, "type 0211")
+    assert "The door opens onto white light" in all_text(at) and ", the door opens" not in all_text(at)
+    click(at, "Forget")
+    assert "You wake up light and calm" in all_text(at)
+
+
+def test_the_name_is_in_the_bad_ending_too():
+    at = start_with_name("mika")
+    play_until_record_played(at)
+    for code in ["1111", "2222", "3333"]:
+        say(at, f"type {code}")
+    assert at.session_state["ending"] == "bad"
+    assert "Mika, the procedure does not stop" in all_text(at)
+
+
+def test_a_typed_name_never_reaches_the_story_the_llm_writes():
+    """The name is used only in fixed texts: not in the chat, not in the facts."""
+    at = start_with_name("zorblax")
+    say(at, "look around")
+    assert "Zorblax" not in " ".join(m["content"] for m in at.session_state["messages"])
+    assert "Zorblax" not in str(game(at))
+
+
+def test_restart_clears_the_name():
+    at = start_with_name("mika")
+    click(at, "Restart")
+    assert at.session_state["player_name"] == "" and at.text_input[0].value == ""
+
+
+# ---------- M17: sounds ----------
+def audio_nodes(at):
+    return list(at.get("audio"))
+
+
+def test_no_sound_on_the_start_screen():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert audio_nodes(at) == []
+
+
+def test_the_music_plays_in_the_game_and_loops():
+    at = new_game()
+    nodes = audio_nodes(at)
+    assert len(nodes) == 1
+    assert nodes[0].proto.loop is True and nodes[0].proto.autoplay is True
+
+
+def test_the_music_can_be_switched_off_and_on_with_a_themed_switch():
+    """Yada: the grey browser player does not fit the pixel theme, so it is hidden; a switch replaces it."""
+    at = new_game()
+    assert len(at.toggle) == 1 and at.toggle[0].label == "Music" and at.toggle[0].value is True
+    at.toggle[0].set_value(False).run()
+    assert audio_nodes(at) == []
+    at.toggle[0].set_value(True).run()
+    assert len(audio_nodes(at)) == 1
+
+
+def test_there_is_no_music_switch_on_the_start_screen():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert len(at.toggle) == 0
+
+
+def test_no_voice_player_in_memory_3_any_more():
+    """Yada: Sky's voice felt strange, so memory 3 shows its picture and text only."""
+    at = new_game()
+    play_until_record_played(at)  # ends the memory 3 scene
+    assert len(audio_nodes(at)) == 1, "only the music"
+    at = new_game()
+    say(at, "examine the raincoat")
+    say(at, "take the key")
+    say(at, "open the drawer with the key")
+    end_cutscene(at)  # memory 2 is over, so the chat input is back
+    say(at, "take the record")
+    say(at, "play the record")
+    scene = at.session_state["cutscene"]
+    scene["shows_at"] = time.time() - 0.1
+    scene["ends_at"] = time.time() + 8
+    at.run()
+    assert len(audio_nodes(at)) == 1, "memory 3 picture is shown: still only the music"
+
+
+def test_the_music_script_sets_a_quiet_volume_and_the_player_is_hidden():
+    from sounds import MUSIC_VOLUME, hide_player_css, quiet_script
+    script = quiet_script(MUSIC_VOLUME)
+    assert "<script>" in script and str(MUSIC_VOLUME) in script and "volume" in script and "stSidebar" in script
+    assert MUSIC_VOLUME <= 0.15
+    assert "stAudio" in hide_player_css() and "display: none" in hide_player_css()
+
+
+def test_the_name_field_says_when_the_name_is_saved():
+    """Yada: pressing Enter gave no sign that the name was kept."""
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert not any("Your name is now" in c.value for c in at.caption)
+    at.text_input[0].set_value("kim").run()
+    assert any(c.value == "Your name is now Kim." for c in at.caption)
+    at.text_input[0].set_value("1234").run()
+    assert any("letters" in c.value for c in at.caption) and not any("Your name is now" in c.value for c in at.caption)
+
+
+def test_how_to_play_is_short_so_the_start_screen_fits_the_screen():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    how = [m.value for m in at.markdown if "Start by looking around" in str(m.value)]
+    assert how and len(how[0]) < 420, len(how[0]) if how else "text not found"
+    assert how[0].count("look around") <= 1 and "pick things up" not in how[0]
+
+
+def test_the_chat_shows_sky_words_when_the_record_plays():
+    at = new_game()
+    play_until_record_played(at)
+    story = " ".join(m["content"] for m in at.session_state["messages"] if m["role"] == "assistant")
+    assert "Please don't forget me." in story and "If you can hear this, you came back." in story
+
+
 def test_full_escape_then_remember():
     at = new_game()
     play_until_record_played(at)
