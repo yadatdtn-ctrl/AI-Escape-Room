@@ -173,7 +173,7 @@
     "ALREADY_DONE": "That is already done.",
     "NO_CODE_LOCK": "There is no keypad there.",
     "BAD_FORMAT": "The keypad needs exactly four digits.",
-    "NOT_READY": "The keypad does not respond.",
+    "NOT_READY": "The keypad does not respond. The room still holds memories you have not found yet.",
     "WRONG_CODE": "The keypad shows: Incorrect.",
     "DOOR_OPENS": "The keypad beeps. The door opens onto white light."
   }

@@ -136,6 +136,13 @@ def test_code_must_be_a_string():
     assert not result["allowed"] and state["door_open"] is False
 
 
+def test_the_keypad_message_before_the_record_names_the_memories_not_being_ready():
+    """Yada: 'It did not work because you are not ready' sounded weird."""
+    text = act(game_with_record(), action="enter_code", target="door", code=DOOR_CODE)["facts"]["text"]
+    assert "memories" in text and "ready" not in text.lower()
+    assert DOOR_CODE not in text  # it still gives nothing away
+
+
 def test_door_ignores_every_code_before_record():
     state = game_with_record()
     right = act(state, action="enter_code", target="door", code=DOOR_CODE)

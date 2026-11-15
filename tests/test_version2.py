@@ -485,6 +485,12 @@ def test_every_message_costs_one_move():
     assert game(at)["moves"] == 2
 
 
+def test_code_too_early_gets_the_memories_sentence_in_the_chat():
+    at = new_game()
+    say(at, "type 0211")
+    assert "memories" in at.session_state["messages"][-1]["content"]
+
+
 def test_code_before_the_record_is_not_counted():
     at = new_game()
     say(at, "type 0211")
@@ -569,6 +575,21 @@ def test_the_memory_card_unlocks_when_the_picture_shows_not_during_the_walk():
     scene["ends_at"] = time.time() + 8
     at.run()
     assert locked_cards(at) == 2, "the picture shows now: the card unlocks"
+
+
+def test_the_final_choice_is_in_the_chat_not_under_the_picture():
+    """Yada: the Remember / Forget buttons were at the bottom of the left side, off the screen."""
+    from texts import FINAL_CHOICE_TEXT
+    at = new_game()
+    play_until_record_played(at)
+    say(at, "type 0211")
+    assert len(at.exception) == 0, f"the final choice draws without an error: {at.exception}"
+    left_labels = [b.label for b in at.columns[0].button]
+    right_labels = [b.label for b in at.columns[1].button]
+    assert "Remember" in right_labels and "Forget" in right_labels
+    assert "Remember" not in left_labels and "Forget" not in left_labels
+    assert any(FINAL_CHOICE_TEXT in str(m.value) for m in at.columns[1].markdown), "the question is in the chat too"
+    assert not any(FINAL_CHOICE_TEXT in str(m.value) for m in at.columns[0].markdown)
 
 
 def test_full_escape_then_remember():
