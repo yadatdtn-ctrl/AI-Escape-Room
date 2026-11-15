@@ -156,4 +156,15 @@ Honest notes:
 - **There is no hint.** The player who is stuck only gets short refusals from the game. Yada, who knows the story, still forgot how to get memory 3. A new player would be in the same situation, so this is a real weakness of the game. A hint button was offered as an improvement but is **not built**.
 - One game and one player (the author), so the numbers (4:25, 19 moves) show that the game can be finished in time, not how long a new player needs.
 
+### Two sentences Gemini did not read as the player meant (same game)
+
+The player wanted to open the drawer with the key, but typed a vague sentence. The sidebar box "Show what the referee decided" was off, so the screenshots show the story only, not the referee's action.
+
+| Sentence | What the player meant | What the game answered | Result |
+|---|---|---|---|
+| `use a key to a keyhold and open` | The key on the drawer. | "That does not work here. The brass key is not the right tool for the door." | Gemini turned the sentence into the key on the **door**. Python refused it (the key opens only the drawer), so nothing changed. The game stayed correct, but the player's meaning was not understood. |
+| `no for the drawwer` (typed next, with a typo) | Again: the drawer. | "Nothing like that is possible here. That action does not work, and you are left holding the brass key in the quiet room." | Not understood as an action; the plain refusal text was used. The Moves card still showed 7 / 30, as after the first sentence. |
+
+Honest notes: this is one player, one game, and the sentences were not clear (the word "drawer" is missing in the first, and the second has no verb). They show the limit of the LLM interpreter: a vague sentence can be read the wrong way, and the rules in Python keep the game safe. They do not show how often it happens. A clearer sentence such as `open the drawer with the key` was understood in the earlier tests.
+
 _The report (`docs/report.md`) is written by Yada in M9, using this file as the evidence._
