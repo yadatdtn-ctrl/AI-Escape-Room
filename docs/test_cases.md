@@ -142,4 +142,18 @@ Honest notes:
 - In the 503 screenshot the status panel shows only "Time left" and "Wrong codes"; the "Moves" card is missing in that one picture. In the next three screenshots all three cards are there. The cause is not known yet (it may be a picture taken while the page was redrawing); it is noted here so it can be checked.
 - The fallback line shows the raw API error text to the player. It is honest, but long and technical.
 
+## One full game played by Yada (after M12), real Gemini
+
+Yada played Version 2 from the start to an ending, in the browser, with real Gemini. This is one game, written down from what Yada saw and reported; there are no screenshots of it in this folder.
+
+| What was checked | Result |
+|---|---|
+| A typing mistake: `crokboard` | Gemini understood it as the corkboard, and the game showed the corkboard clue. The interpreter handles a typo (one case, not a guarantee). |
+| A full game to the end | The game ended with the **Remember** ending. The end screen showed: time used 4:25, moves 19, wrong codes 0, memories 3 of 3. |
+| Finding all 3 memories | Yada forgot how to get memory 3 during the game (see below). |
+
+Honest notes:
+- **There is no hint.** The player who is stuck only gets short refusals from the game. Yada, who knows the story, still forgot how to get memory 3. A new player would be in the same situation, so this is a real weakness of the game. A hint button was offered as an improvement but is **not built**.
+- One game and one player (the author), so the numbers (4:25, 19 moves) show that the game can be finished in time, not how long a new player needs.
+
 _The report (`docs/report.md`) is written by Yada in M9, using this file as the evidence._
